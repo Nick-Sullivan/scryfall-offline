@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Bulk data sync + card image CDN -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="scryfall_app"
+        android:label="Scryfall Offline"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
