@@ -15,10 +15,20 @@ const int schemaVersionValue = 1;
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
-  /// Opens (or creates) the database at [file] with queries running on a
-  /// background isolate. Used for the live app database.
+  /// Opens (or creates) the database at [file] with queries running on
+  /// background isolates. The read pool lets slow queries (COUNT(*) of a
+  /// broad search) run alongside detail/page queries instead of serializing
+  /// them all on one connection; WAL is required for the pool to be used.
   factory AppDatabase.background(File file) =>
-      AppDatabase(NativeDatabase.createInBackground(file, setup: setupSqlite));
+      AppDatabase(NativeDatabase.createInBackground(
+        file,
+        readPool: 4,
+        setup: (db) {
+          setupSqlite(db);
+          db.execute('PRAGMA journal_mode = WAL;');
+          db.execute('PRAGMA busy_timeout = 5000;');
+        },
+      ));
 
   /// Same-isolate open. Used for the staging database inside the ingest
   /// isolate and for tests ([file] null = in-memory).

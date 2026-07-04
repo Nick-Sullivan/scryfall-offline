@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/providers.dart';
 import 'app/router.dart';
@@ -18,12 +19,14 @@ Future<void> main() async {
     ..root.createSync(recursive: true)
     ..cleanupStray();
   final info = await PackageInfo.fromPlatform();
+  final prefs = await SharedPreferences.getInstance();
 
   runApp(
     ProviderScope(
       overrides: [
         dbFilesProvider.overrideWithValue(files),
         appVersionProvider.overrideWithValue(info.version),
+        prefsProvider.overrideWithValue(prefs),
       ],
       child: const ScryfallApp(),
     ),

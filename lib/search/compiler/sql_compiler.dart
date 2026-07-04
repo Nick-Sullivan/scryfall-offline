@@ -63,12 +63,7 @@ class SqlCompiler {
       _params.add(t.text);
       return '(cards.name = ? COLLATE NOCASE OR ${_facesExists('f.name = ? COLLATE NOCASE')})';
     }
-    return _facesExists(_faceNameLike(t.text));
-  }
-
-  String _faceNameLike(String text) {
-    _params.add(_likePattern(text));
-    return "f.id IN (SELECT rowid FROM face_name_fts WHERE name LIKE ? ESCAPE '\\')";
+    return _facesFtsLike('face_name_fts', 'name', t.text);
   }
 
   // ----------------------------------------------------------- predicates
@@ -122,7 +117,7 @@ class SqlCompiler {
       case 'name':
         return switch (value) {
           RegexValue r => _facesExists(_regex('f.name', r.pattern)),
-          StringValue s => _facesExists(_faceNameLike(s.text)),
+          StringValue s => _facesFtsLike('face_name_fts', 'name', s.text),
         };
       case 'kw' || 'keyword':
         _params.add('%|${_escapeLike(text().toLowerCase())}|%');
@@ -245,11 +240,30 @@ class SqlCompiler {
       case RegexValue r:
         return _facesExists(_regex('f.$column', r.pattern));
       case StringValue s:
-        _params.add(_likePattern(s.text));
-        return _facesExists(
-            'f.id IN (SELECT rowid FROM face_text_fts '
-            "WHERE $ftsColumn LIKE ? ESCAPE '\\')");
+        return _facesFtsLike('face_text_fts', ftsColumn, s.text);
     }
+  }
+
+  /// Face-level FTS predicate as an uncorrelated semi-join: both IN lists
+  /// materialize once into indexed ephemerals. The obvious alternative — a
+  /// correlated EXISTS containing `f.id IN (SELECT rowid FROM fts …)` —
+  /// makes SQLite probe every (card × FTS match) pair; t:creature took ~17s
+  /// over the full card database that way.
+  String _facesFtsLike(String fts, String column, String text) =>
+      'cards.oracle_id IN (SELECT f.oracle_id FROM faces f '
+      'WHERE f.id IN (SELECT rowid FROM $fts WHERE ${_like(column, text)}))';
+
+  /// LIKE clause for a substring match. ESCAPE is added only when [text]
+  /// contains LIKE metacharacters — its mere presence disables the FTS5
+  /// trigram LIKE index pushdown, degrading every lookup to a full scan.
+  String _like(String column, String text) {
+    final escaped = _escapeLike(text);
+    if (escaped == text) {
+      _params.add('%$text%');
+      return '$column LIKE ?';
+    }
+    _params.add('%$escaped%');
+    return "$column LIKE ? ESCAPE '\\'";
   }
 
   String _likePattern(String text) => '%${_escapeLike(text)}%';

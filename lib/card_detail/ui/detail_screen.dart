@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,14 +19,31 @@ class DetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail =
         ref.watch(cardDetailProvider((oracleId: oracleId, printId: printId)));
+    // The offline pack stores the preferred print's front image; use it when
+    // that's the print being shown.
+    final local = printId == null
+        ? ref.watch(imageStoreProvider).fileFor(oracleId)
+        : null;
+    final localFront = (local?.existsSync() ?? false) ? local : null;
+    final saved = ref.watch(savedCardsProvider).contains(oracleId);
     return Scaffold(
-      appBar: AppBar(title: Text(detail.valueOrNull?.name ?? '')),
+      appBar: AppBar(
+        title: Text(detail.valueOrNull?.name ?? ''),
+        actions: [
+          IconButton(
+            icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border),
+            tooltip: saved ? 'Remove from saved' : 'Save to view later',
+            onPressed: () =>
+                ref.read(savedCardsProvider.notifier).toggle(oracleId),
+          ),
+        ],
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load card: $e')),
         data: (card) => card == null
             ? const Center(child: Text('Card not found.'))
-            : _DetailBody(card: card),
+            : _DetailBody(card: card, localFront: localFront),
       ),
     );
   }
@@ -32,20 +51,22 @@ class DetailScreen extends ConsumerWidget {
 
 class _DetailBody extends StatelessWidget {
   final CardDetail card;
+  final File? localFront;
 
-  const _DetailBody({required this.card});
+  const _DetailBody({required this.card, this.localFront});
 
   @override
   Widget build(BuildContext context) {
     final json = card.rawJson;
     final faces =
         (json['card_faces'] as List?)?.cast<Map<String, dynamic>>() ?? [json];
-    final images = _faceImages(json, faces);
+    final pages = _facePages(json, faces);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (images.isNotEmpty) _ImagePager(images: images),
+        if (pages.isNotEmpty)
+          _ImagePager(pages: pages, localFirst: localFront),
         _artistLine(context, json, faces),
         const SizedBox(height: 16),
         for (final (i, face) in faces.indexed) ...[
@@ -83,17 +104,19 @@ class _DetailBody extends StatelessWidget {
     );
   }
 
-  /// One image per face for transform/mdfc; single shared image otherwise.
-  List<String> _faceImages(
+  /// One (image, face) page per face for transform/mdfc; a single shared
+  /// image otherwise. The face rides along so a failed image load can show
+  /// the right face's text in the card slot instead.
+  List<(String, Map<String, dynamic>)> _facePages(
       Map<String, dynamic> json, List<Map<String, dynamic>> faces) {
     final topLevel =
         (json['image_uris'] as Map<String, dynamic>?)?['normal'] as String?;
-    if (topLevel != null) return [topLevel];
+    if (topLevel != null) return [(topLevel, faces.first)];
     return [
       for (final f in faces)
         if ((f['image_uris'] as Map<String, dynamic>?)?['normal']
             case final String uri)
-          uri
+          (uri, f)
     ];
   }
 
@@ -115,16 +138,34 @@ class _DetailBody extends StatelessWidget {
 }
 
 class _ImagePager extends StatefulWidget {
-  final List<String> images;
+  final List<(String, Map<String, dynamic>)> pages;
 
-  const _ImagePager({required this.images});
+  /// Local file for the first face, when the offline pack has it.
+  final File? localFirst;
+
+  const _ImagePager({required this.pages, this.localFirst});
 
   @override
   State<_ImagePager> createState() => _ImagePagerState();
 }
 
 class _ImagePagerState extends State<_ImagePager> {
+  final _controller = PageController();
   int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _flip() {
+    _controller.animateToPage(
+      (_page + 1) % widget.pages.length,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,31 +173,78 @@ class _ImagePagerState extends State<_ImagePager> {
       children: [
         AspectRatio(
           aspectRatio: 488 / 680,
-          child: PageView(
-            onPageChanged: (p) => setState(() => _page = p),
+          child: Stack(
             children: [
-              for (final uri in widget.images)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: CachedNetworkImage(
-                    imageUrl: uri,
-                    fit: BoxFit.contain,
-                    placeholder: (_, __) =>
-                        const Center(child: CircularProgressIndicator()),
-                    errorWidget: (_, __, ___) => const Center(
-                        child: Icon(Icons.image_not_supported_outlined)),
+              PageView(
+                controller: _controller,
+                onPageChanged: (p) => setState(() => _page = p),
+                children: [
+                  for (final (i, (uri, face)) in widget.pages.indexed)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: i == 0 && widget.localFirst != null
+                          ? Image.file(
+                              widget.localFirst!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) =>
+                                  _TextCardFace(face: face),
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: uri,
+                              fit: BoxFit.contain,
+                              placeholder: (_, __) => const Center(
+                                  child: CircularProgressIndicator()),
+                              // Offline with no image pack — show the card's
+                              // text in the card slot instead.
+                              errorWidget: (_, __, ___) =>
+                                  _TextCardFace(face: face),
+                            ),
+                    ),
+                ],
+              ),
+              if (widget.pages.length > 1)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: FloatingActionButton.small(
+                    heroTag: null,
+                    tooltip: 'Flip card',
+                    onPressed: _flip,
+                    child: const Icon(Icons.autorenew),
                   ),
                 ),
             ],
           ),
         ),
-        if (widget.images.length > 1)
+        if (widget.pages.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text('Face ${_page + 1} of ${widget.images.length} — swipe',
+            child: Text('Face ${_page + 1} of ${widget.pages.length}',
                 style: Theme.of(context).textTheme.labelSmall),
           ),
       ],
+    );
+  }
+}
+
+/// A card-shaped text rendition shown in the image slot when the image
+/// can't be loaded (offline without the image pack).
+class _TextCardFace extends StatelessWidget {
+  final Map<String, dynamic> face;
+
+  const _TextCardFace({required this.face});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border.all(color: theme.dividerColor, width: 2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: SingleChildScrollView(child: _FaceText(face: face)),
     );
   }
 }

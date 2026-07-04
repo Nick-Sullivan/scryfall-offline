@@ -24,13 +24,6 @@ class CardSummary {
   });
 }
 
-class SearchPage {
-  final List<CardSummary> items;
-  final int total;
-
-  const SearchPage(this.items, this.total);
-}
-
 class PrintingInfo {
   final String id;
   final String setCode;
@@ -87,37 +80,64 @@ class CardRepository {
 
   CardRepository(this.db);
 
-  Future<SearchPage> search(CompiledQuery query,
+  static const _summaryColumns =
+      'cards.oracle_id, cards.name, cards.mana_cost, cards.type_line, '
+      'p.image_uri_small, p.image_uri_normal';
+
+  static CardSummary _summary(QueryRow r) => CardSummary(
+        oracleId: r.data['oracle_id'] as String,
+        name: r.data['name'] as String,
+        manaCost: r.data['mana_cost'] as String?,
+        typeLine: r.data['type_line'] as String,
+        imageSmall: r.data['image_uri_small'] as String?,
+        imageNormal: r.data['image_uri_normal'] as String?,
+      );
+
+  /// One page of matching cards. Kept separate from [count] so the UI can
+  /// paint results without waiting on the full-table COUNT(*).
+  Future<List<CardSummary>> searchRows(CompiledQuery query,
       {required int limit, required int offset}) async {
-    final vars = [for (final p in query.params) Variable(p)];
     final rows = await db.customSelect(
-      'SELECT cards.oracle_id, cards.name, cards.mana_cost, cards.type_line, '
-      'p.image_uri_small, p.image_uri_normal '
+      'SELECT $_summaryColumns '
       'FROM cards LEFT JOIN prints p ON p.id = cards.preferred_print_id '
       'WHERE ${query.where} ORDER BY ${query.orderBy} '
       'LIMIT $limit OFFSET $offset',
-      variables: vars,
+      variables: [for (final p in query.params) Variable(p)],
     ).get();
-    final total = offset == 0 || rows.isNotEmpty
-        ? (await db.customSelect(query.countSql(),
-                variables: [for (final p in query.params) Variable(p)])
-            .getSingle())
-            .data['n'] as int
-        : 0;
-    return SearchPage(
-      [
-        for (final r in rows)
-          CardSummary(
-            oracleId: r.data['oracle_id'] as String,
-            name: r.data['name'] as String,
-            manaCost: r.data['mana_cost'] as String?,
-            typeLine: r.data['type_line'] as String,
-            imageSmall: r.data['image_uri_small'] as String?,
-            imageNormal: r.data['image_uri_normal'] as String?,
-          )
-      ],
-      total,
-    );
+    return [for (final r in rows) _summary(r)];
+  }
+
+  /// Summaries for [oracleIds], returned in the same order (missing ids —
+  /// e.g. a card gone after a data update — are silently dropped). Chunked
+  /// to stay under SQLite's bind-variable limit.
+  Future<List<CardSummary>> summariesByIds(List<String> oracleIds) async {
+    final found = <String, CardSummary>{};
+    for (var i = 0; i < oracleIds.length; i += 500) {
+      final chunk = oracleIds.sublist(
+          i, i + 500 > oracleIds.length ? oracleIds.length : i + 500);
+      final rows = await db.customSelect(
+        'SELECT $_summaryColumns '
+        'FROM cards LEFT JOIN prints p ON p.id = cards.preferred_print_id '
+        'WHERE cards.oracle_id IN (${List.filled(chunk.length, '?').join(',')})',
+        variables: [for (final id in chunk) Variable(id)],
+      ).get();
+      for (final r in rows) {
+        final s = _summary(r);
+        found[s.oracleId] = s;
+      }
+    }
+    return [
+      for (final id in oracleIds)
+        if (found[id] case final s?) s
+    ];
+  }
+
+  /// Total matching cards (a full scan with EXISTS subqueries — the slow part
+  /// of a search, run after results are already on screen).
+  Future<int> count(CompiledQuery query) async {
+    final row = await db.customSelect(query.countSql(),
+        variables: [for (final p in query.params) Variable(p)]).getSingle();
+    return row.data['n'] as int;
   }
 
   Future<CardDetail?> detail(String oracleId, {String? printId}) async {
@@ -127,8 +147,12 @@ class CardRepository {
         variables: [Variable(oracleId)]).getSingleOrNull();
     if (card == null) return null;
 
+    // raw_json is a few KB per row and heavily reprinted cards (basic lands)
+    // have hundreds of printings — fetch it only for the print we display.
     final printRows = await db.customSelect(
-        'SELECT * FROM prints WHERE oracle_id = ? ORDER BY released_at DESC',
+        'SELECT id, set_code, set_name, collector_number, rarity, lang, '
+        'image_uri_small, image_uri_normal, artist '
+        'FROM prints WHERE oracle_id = ? ORDER BY released_at DESC',
         variables: [Variable(oracleId)]).get();
     final rulingRows = await db.customSelect(
         'SELECT published_at, comment FROM rulings WHERE oracle_id = ? '
@@ -137,8 +161,13 @@ class CardRepository {
 
     final selectedId =
         printId ?? card.data['preferred_print_id'] as String?;
-    final selected = printRows.where((r) => r.data['id'] == selectedId).toList();
-    final rawRow = selected.isNotEmpty ? selected.first : printRows.first;
+    final selected =
+        printRows.any((r) => r.data['id'] == selectedId)
+            ? selectedId!
+            : printRows.first.data['id'] as String;
+    final rawRow = await db.customSelect(
+        'SELECT raw_json FROM prints WHERE id = ?',
+        variables: [Variable(selected)]).getSingle();
 
     return CardDetail(
       oracleId: oracleId,
@@ -174,6 +203,35 @@ class CardRepository {
     return {
       for (final r in rows) r.data['key'] as String: r.data['value'] as String
     };
+  }
+
+  /// (oracle_id, normal-image URL) for every card, for the offline image
+  /// pack. DFC prints carry the front face's image here.
+  Future<List<(String, String)>> imageTargets() async {
+    final rows = await db.customSelect(
+        'SELECT cards.oracle_id, p.image_uri_normal FROM cards '
+        'JOIN prints p ON p.id = cards.preferred_print_id '
+        'WHERE p.image_uri_normal IS NOT NULL').get();
+    return [
+      for (final r in rows)
+        (r.data['oracle_id'] as String, r.data['image_uri_normal'] as String)
+    ];
+  }
+
+  /// Distinct type words for the filter sheet's type autocomplete, extracted
+  /// from every type line ("Legendary Creature — Elf Warrior" contributes
+  /// Legendary, Creature, Elf, Warrior). Face separators are dropped.
+  Future<List<String>> allTypes() async {
+    final rows =
+        await db.customSelect('SELECT DISTINCT type_line FROM cards').get();
+    final types = <String>{};
+    for (final r in rows) {
+      for (final word in (r.data['type_line'] as String).split(RegExp(r'\s+'))) {
+        if (word.isNotEmpty && word != '—' && word != '//') types.add(word);
+      }
+    }
+    return types.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   }
 
   /// Distinct sets for the filter sheet's set autocomplete.

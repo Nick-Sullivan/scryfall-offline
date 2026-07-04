@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/errors.dart';
-import '../../data/repo/card_repository.dart';
+import 'card_tile.dart';
 import 'filter_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -19,6 +18,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   final _scroll = ScrollController();
   Timer? _debounce;
 
@@ -37,23 +37,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _focus.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   void _onChanged(String text) {
+    // Short coalescing window only — results paint without waiting on the
+    // match count, so this feels effectively instant while typing.
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 80), () {
       ref.read(searchProvider.notifier).setQuery(text);
     });
   }
 
-  void _appendSyntax(String syntax) {
-    final current = _controller.text.trim();
-    _controller.text = current.isEmpty ? syntax : '$current $syntax';
-    _controller.selection =
-        TextSelection.collapsed(offset: _controller.text.length);
-    ref.read(searchProvider.notifier).setQuery(_controller.text);
+  void _clearAll() {
+    _debounce?.cancel();
+    _controller.clear();
+    ref.read(filterProvider.notifier).reset();
+    ref.read(searchProvider.notifier).setQuery('');
+    setState(() {});
   }
 
   @override
@@ -62,16 +65,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final updateAvailable =
         ref.watch(updateAvailableProvider).valueOrNull ?? false;
 
+    // Keep the box in sync when the query changes programmatically (live
+    // filter edits), without fighting the cursor while the user is typing.
+    ref.listen<String>(searchProvider.select((s) => s.query), (_, next) {
+      if (!_focus.hasFocus && _controller.text != next) {
+        _controller.text = next;
+        _controller.selection =
+            TextSelection.collapsed(offset: next.length);
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: TextField(
           controller: _controller,
+          focusNode: _focus,
           onChanged: _onChanged,
           autocorrect: false,
           textInputAction: TextInputAction.search,
           style: const TextStyle(fontSize: 16),
           decoration: const InputDecoration(
-            hintText: 't:creature c:rg mv<=3 o:"draw a card"',
+            hintText: 'Search or use filters',
             border: InputBorder.none,
           ),
         ),
@@ -79,42 +93,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           if (_controller.text.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear),
-              onPressed: () {
-                _controller.clear();
-                ref.read(searchProvider.notifier).setQuery('');
-                setState(() {});
-              },
+              tooltip: 'Clear',
+              onPressed: _clearAll,
             ),
-          _SortMenu(onSelected: _appendSyntax),
+          IconButton(
+            icon: const Icon(Icons.bookmarks_outlined),
+            tooltip: 'Saved cards',
+            onPressed: () => context.push('/saved'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Filters & sort',
+            // Filters apply live; the box stays synced via the listener above.
+            onPressed: () => showFilterSheet(context, ref),
+          ),
           PopupMenuButton<String>(
             onSelected: (route) => context.push(route),
             itemBuilder: (_) => const [
+              PopupMenuItem(value: '/settings', child: Text('Settings')),
               PopupMenuItem(value: '/data', child: Text('Card data & updates')),
-              PopupMenuItem(value: '/about', child: Text('About & attribution')),
+              PopupMenuItem(
+                value: '/about',
+                child: Text('About & attribution'),
+              ),
             ],
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Filters',
-        onPressed: () async {
-          final syntax = await showFilterSheet(context, ref);
-          if (syntax != null && syntax.isNotEmpty) _appendSyntax(syntax);
-        },
-        child: const Icon(Icons.tune),
       ),
       body: Column(
         children: [
           if (updateAvailable) const _UpdateBanner(),
           if (search.error != null)
             _QueryErrorBanner(error: search.error!, query: search.query),
-          if (search.error == null && search.query.isNotEmpty)
+          if (search.error == null && !search.loading && search.items.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '${search.total} card${search.total == 1 ? '' : 's'}',
+                  // total is null until the count query lands; results are
+                  // already showing, so just say "cards" until it arrives.
+                  search.total == null
+                      ? 'cards'
+                      : '${search.total} card${search.total == 1 ? '' : 's'}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -126,11 +147,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildBody(SearchState search) {
-    if (search.query.isEmpty) {
-      return const _EmptyHint();
-    }
     if (search.error != null) {
       return const SizedBox.shrink();
+    }
+    if (search.loading) {
+      return const Center(child: CircularProgressIndicator());
     }
     if (search.items.isEmpty) {
       return const Center(child: Text('No cards match this search.'));
@@ -150,67 +171,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         final card = search.items[i];
-        return _CardTile(card: card);
+        return CardTile(card: card);
       },
-    );
-  }
-}
-
-class _CardTile extends StatelessWidget {
-  final CardSummary card;
-
-  const _CardTile({required this.card});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/card/${card.oracleId}'),
-      borderRadius: BorderRadius.circular(9),
-      child: card.imageNormal == null
-          ? _TextFallback(card: card)
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: CachedNetworkImage(
-                imageUrl: card.imageNormal!,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => _TextFallback(card: card),
-                errorWidget: (_, __, ___) => _TextFallback(card: card),
-              ),
-            ),
-    );
-  }
-}
-
-class _TextFallback extends StatelessWidget {
-  final CardSummary card;
-
-  const _TextFallback({required this.card});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(card.name,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall),
-          if (card.manaCost != null)
-            Text(card.manaCost!,
-                style: Theme.of(context).textTheme.bodySmall),
-          const Spacer(),
-          Text(card.typeLine,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
     );
   }
 }
@@ -232,8 +194,7 @@ class _QueryErrorBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(error.message,
-              style: TextStyle(color: scheme.onErrorContainer)),
+          Text(error.message, style: TextStyle(color: scheme.onErrorContainer)),
           if (position != null && position <= query.length)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -268,65 +229,6 @@ class _UpdateBanner extends ConsumerWidget {
           onPressed: () => ref.invalidate(updateAvailableProvider),
           child: const Text('Dismiss'),
         ),
-      ],
-    );
-  }
-}
-
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search, size: 48),
-            const SizedBox(height: 12),
-            Text('Search with Scryfall syntax',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            const Text(
-              't:creature c:rg mv<=3\no:"enters tapped" -t:land\n'
-              'pow>tou f:commander\n!"Lightning Bolt"',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            const Text('or tap the filter button below'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SortMenu extends StatelessWidget {
-  final void Function(String syntax) onSelected;
-
-  const _SortMenu({required this.onSelected});
-
-  static const _sorts = {
-    'Name': 'order:name',
-    'Mana value': 'order:cmc',
-    'Newest first': 'order:released',
-    'EDHREC rank': 'order:edhrec',
-    'Rarity': 'order:rarity',
-    'Power': 'order:power',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.sort),
-      tooltip: 'Sort',
-      onSelected: onSelected,
-      itemBuilder: (_) => [
-        for (final e in _sorts.entries)
-          PopupMenuItem(value: e.value, child: Text(e.key)),
       ],
     );
   }

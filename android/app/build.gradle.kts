@@ -19,7 +19,9 @@ val hasReleaseKeystore = keystoreProperties.containsKey("storeFile")
 android {
     namespace = "com.nicksullivan.scryfall_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Plugins (sqlite3_flutter_libs et al.) need NDK 27; Flutter's default
+    // pin is older. NDK versions are backward compatible.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../about/attribution_screen.dart';
 import '../card_detail/ui/detail_screen.dart';
+import '../saved/saved_screen.dart';
 import '../search/ui/search_screen.dart';
+import '../settings/settings_screen.dart';
 import '../sync_ui/onboarding_screen.dart';
 import '../sync_ui/update_screen.dart';
 import 'providers.dart';
@@ -34,6 +36,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           printId: state.uri.queryParameters['print'],
         ),
       ),
+      GoRoute(path: '/saved', builder: (_, __) => const SavedScreen()),
+      GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/data', builder: (_, __) => const UpdateScreen()),
       GoRoute(path: '/about', builder: (_, __) => const AttributionScreen()),
     ],

@@ -43,4 +43,14 @@ class DbFiles {
   }
 
   bool get hasLiveDatabase => live.existsSync();
+
+  /// Called with the live database CLOSED. Removes the live DB and all
+  /// sync/staging artifacts, returning the app to a fresh state.
+  void deleteAll() {
+    cleanupStray();
+    for (final f in [live, File('${live.path}-wal'), File('${live.path}-shm')]) {
+      if (f.existsSync()) f.deleteSync();
+    }
+    if (syncDir.existsSync()) syncDir.deleteSync(recursive: true);
+  }
 }
