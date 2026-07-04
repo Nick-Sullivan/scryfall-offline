@@ -29,11 +29,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Reuses Gradle's dependency + wrapper downloads between runs —
+          # the dominant cost of a cold appbundle build.
+          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      # Pub packages, keyed to the lockfile.
+      - uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ hashFiles('pubspec.lock') }}
 
       # Don't ship a build whose tests fail — especially on the manual
       # production path. (Desktop test runs need system SQLite with FTS5.)

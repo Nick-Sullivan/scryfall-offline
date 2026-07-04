@@ -2,7 +2,7 @@
     <!-- Bulk data sync + card image CDN -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Scryfall Offline"
+        android:label="Offline MTG Card Search"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

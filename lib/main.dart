@@ -39,7 +39,7 @@ class ScryfallApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'Scryfall Offline Search',
+      title: 'Offline MTG Card Search',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7B4FA3)),
       ),
