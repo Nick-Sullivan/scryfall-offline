@@ -75,5 +75,5 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.nicksullivan.scryfall_app
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: ${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}
+          tracks: ${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}
           status: completed

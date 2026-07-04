@@ -70,8 +70,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.listen<String>(searchProvider.select((s) => s.query), (_, next) {
       if (!_focus.hasFocus && _controller.text != next) {
         _controller.text = next;
-        _controller.selection =
-            TextSelection.collapsed(offset: next.length);
+        _controller.selection = TextSelection.collapsed(offset: next.length);
       }
     });
 
@@ -97,11 +96,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onPressed: _clearAll,
             ),
           IconButton(
-            icon: const Icon(Icons.bookmarks_outlined),
-            tooltip: 'Saved cards',
-            onPressed: () => context.push('/saved'),
-          ),
-          IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Filters & sort',
             // Filters apply live; the box stays synced via the listener above.
@@ -110,12 +104,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           PopupMenuButton<String>(
             onSelected: (route) => context.push(route),
             itemBuilder: (_) => const [
+              PopupMenuItem(value: '/saved', child: Text('Saved cards')),
               PopupMenuItem(value: '/settings', child: Text('Settings')),
-              PopupMenuItem(value: '/data', child: Text('Card data & updates')),
-              PopupMenuItem(
-                value: '/about',
-                child: Text('About & attribution'),
-              ),
+              PopupMenuItem(value: '/data', child: Text('Card data')),
+              PopupMenuItem(value: '/about', child: Text('About')),
             ],
           ),
         ],
@@ -125,7 +117,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           if (updateAvailable) const _UpdateBanner(),
           if (search.error != null)
             _QueryErrorBanner(error: search.error!, query: search.query),
-          if (search.error == null && !search.loading && search.items.isNotEmpty)
+          if (search.error == null &&
+              !search.loading &&
+              search.items.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Align(
