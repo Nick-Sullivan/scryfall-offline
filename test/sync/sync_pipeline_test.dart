@@ -57,6 +57,7 @@ void main() {
         rulingsPath: rulingsGz.path,
         rulingsGzip: true,
         bulkUpdatedAt: '2026-07-03T00:00:00Z',
+        setsCardTotal: 12345,
         sqliteOverridePath: Platform.isWindows ? dllPath : null,
       ),
     );
@@ -86,6 +87,10 @@ void main() {
             "SELECT value FROM meta WHERE key = 'bulkUpdatedAt'")
         .getSingle();
     expect(meta.data['value'], '2026-07-03T00:00:00Z');
+    final setsTotal = await db
+        .customSelect("SELECT value FROM meta WHERE key = 'setsCardTotal'")
+        .getSingle();
+    expect(setsTotal.data['value'], '12345');
     await db.close();
   });
 

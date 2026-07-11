@@ -48,7 +48,15 @@ class SyncRepository {
   Future<void> _run(StreamController<SyncProgress> out) async {
     try {
       out.add(const SyncChecking());
-      final index = await BulkApi(client, appVersion: appVersion).fetchIndex();
+      final api = BulkApi(client, appVersion: appVersion);
+      final index = await api.fetchIndex();
+
+      // Fingerprint for later update checks. A failure here must not fail
+      // the sync — the check providers seed the value on their next run.
+      int? setsCardTotal;
+      try {
+        setsCardTotal = await api.fetchSetsCardTotal();
+      } catch (_) {}
 
       files.syncDir.createSync(recursive: true);
       final cardsFile = File(p.join(files.syncDir.path,
@@ -103,6 +111,7 @@ class SyncRepository {
             rulingsGzip: index.rulings.isGzip,
             bulkUpdatedAt: index.defaultCards.updatedAt,
             rulingsUpdatedAt: index.rulings.updatedAt,
+            setsCardTotal: setsCardTotal,
           ),
           errorsAreFatal: true,
         );
@@ -125,12 +134,5 @@ class SyncRepository {
       if (files.staging.existsSync()) files.staging.deleteSync();
       out.add(SyncFailed(e.toString()));
     }
-  }
-
-  /// One cheap API call comparing the server's updated_at with ours.
-  Future<bool> updateAvailable(String? currentUpdatedAt) async {
-    final index = await BulkApi(client, appVersion: appVersion).fetchIndex();
-    return currentUpdatedAt == null ||
-        index.defaultCards.updatedAt != currentUpdatedAt;
   }
 }

@@ -18,6 +18,7 @@ class IngestRequest {
   final bool rulingsGzip;
   final String? bulkUpdatedAt;
   final String? rulingsUpdatedAt;
+  final int? setsCardTotal;
 
   /// Desktop-only: sqlite library to load in this isolate (overrides are
   /// per-isolate). Null on mobile, where the bundled library resolves.
@@ -32,6 +33,7 @@ class IngestRequest {
     this.rulingsGzip = true,
     this.bulkUpdatedAt,
     this.rulingsUpdatedAt,
+    this.setsCardTotal,
     this.sqliteOverridePath,
   });
 }
@@ -75,6 +77,7 @@ Future<void> ingestIsolateMain(IngestRequest req) async {
     await ingestor.finalize(
       bulkUpdatedAt: req.bulkUpdatedAt,
       rulingsUpdatedAt: req.rulingsUpdatedAt,
+      setsCardTotal: req.setsCardTotal,
     );
     await db.close();
     db = null;

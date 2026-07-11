@@ -76,4 +76,27 @@ class BulkApi {
       rulings: parse('rulings'),
     );
   }
+
+  /// Sums card_count across all sets — a cheap fingerprint of "how many
+  /// cards exist upstream" that, unlike the bulk file's updated_at, doesn't
+  /// change on Scryfall's twice-daily price-only regenerations.
+  Future<int> fetchSetsCardTotal() async {
+    var url = Uri.parse('https://api.scryfall.com/sets');
+    var total = 0;
+    while (true) {
+      final resp = await client.get(url, headers: scryfallHeaders(appVersion));
+      if (resp.statusCode != 200) {
+        throw http.ClientException(
+            'sets endpoint returned HTTP ${resp.statusCode}');
+      }
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      for (final e in (body['data'] as List).cast<Map<String, dynamic>>()) {
+        total += (e['card_count'] as num?)?.toInt() ?? 0;
+      }
+      // Unpaginated today, but the List envelope allows it.
+      final next = body['next_page'] as String?;
+      if (body['has_more'] != true || next == null) return total;
+      url = Uri.parse(next);
+    }
+  }
 }

@@ -27,7 +27,11 @@ class UpdateScreen extends ConsumerWidget {
           _row('Cards', meta['cardCount'] ?? '—'),
           _row('Printings', meta['printCount'] ?? '—'),
           _row('Data from', _friendlyDate(meta['bulkUpdatedAt'])),
-          _row('Last update check', _friendlyDate(meta['lastCheckAt'])),
+          _row(
+            'Last update check',
+            _friendlyDate(
+                ref.watch(prefsProvider).getString(UpdatePrefs.checkAt)),
+          ),
           const SizedBox(height: 24),
           if (progress != null) ...[
             SyncProgressView(progress: progress),
@@ -73,9 +77,10 @@ class UpdateScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 8),
           const Text(
-            'Scryfall refreshes bulk data every 12 hours; card text changes '
-            'rarely, so updating weekly or after a new set releases is '
-            'plenty. Search keeps working while an update downloads.',
+            'The app checks whether new cards have been released; Scryfall\'s '
+            'price-only data refreshes are ignored. Already-downloaded card '
+            'images are kept — only art for new cards is fetched. Search '
+            'keeps working while an update downloads.',
             style: TextStyle(fontSize: 12),
           ),
           const Divider(height: 40),

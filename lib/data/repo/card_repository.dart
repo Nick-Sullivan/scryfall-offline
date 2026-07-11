@@ -205,6 +205,10 @@ class CardRepository {
     };
   }
 
+  Future<void> setMetaEntry(String key, String value) => db
+      .into(db.meta)
+      .insertOnConflictUpdate(MetaCompanion.insert(key: key, value: value));
+
   /// (oracle_id, normal-image URL) for every card, for the offline image
   /// pack. DFC prints carry the front face's image here.
   Future<List<(String, String)>> imageTargets() async {

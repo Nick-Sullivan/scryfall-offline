@@ -13,8 +13,10 @@ import 'package:path/path.dart' as p;
 
 import '../data/db/database.dart';
 import '../data/db/db_files.dart';
+import '../data/db/tables.dart';
 import '../data/images/image_store.dart';
 import '../data/repo/card_repository.dart';
+import '../data/sync/bulk_api.dart';
 import '../data/sync/sync_progress.dart';
 import '../data/sync/sync_repository.dart';
 import '../search/compiler/sql_compiler.dart';
@@ -206,47 +208,95 @@ final imagePackStatusProvider = FutureProvider<(int, int)>((ref) async {
   return (ref.watch(imageStoreProvider).countSync(), total);
 });
 
-/// Definitive server check for the data screen: true = newer bulk exists,
-/// false = up to date, null = couldn't reach Scryfall. No 24h throttle —
-/// one tiny index GET per screen visit, refreshed after each sync (the DB
-/// swap cascades through metaProvider).
-final updateCheckProvider = FutureProvider.autoDispose<bool?>((ref) async {
-  final meta = await ref.watch(metaProvider.future);
-  final current = meta['bulkUpdatedAt'];
-  if (current == null) return true;
-  final repo = SyncRepository(
-    files: ref.read(dbFilesProvider),
-    client: ref.read(httpClientProvider),
-    appVersion: ref.read(appVersionProvider),
-  );
-  try {
-    return await repo.updateAvailable(current);
-  } catch (_) {
-    return null; // offline — unknown
-  }
-});
+/// Prefs keys for the update check. The /sets card total is the update
+/// fingerprint: unlike the bulk file's updated_at (which changes every 12h
+/// from price churn the app strips anyway), it only moves when cards are
+/// actually added upstream.
+class UpdatePrefs {
+  static const checkAt = 'updateCheckAt';
+  static const checkTotal = 'updateCheckTotal';
+  static const dismissedTotal = 'updateDismissedTotal';
+}
 
-/// True when a newer bulk file exists upstream (checked at most once per
-/// app session by the search screen).
-final updateAvailableProvider = FutureProvider<bool>((ref) async {
+/// Current upstream /sets card total; null if offline with nothing cached.
+/// Unless [force], a fetch newer than 24h is reused from prefs. Every
+/// successful fetch refreshes the prefs cache.
+Future<int?> _currentSetsTotal(Ref ref, {required bool force}) async {
+  final prefs = ref.read(prefsProvider);
+  final cached = prefs.getInt(UpdatePrefs.checkTotal);
+  if (!force && cached != null) {
+    final last = DateTime.tryParse(prefs.getString(UpdatePrefs.checkAt) ?? '');
+    if (last != null &&
+        DateTime.now().toUtc().difference(last.toUtc()).inHours < 24) {
+      return cached;
+    }
+  }
+  final api = BulkApi(ref.read(httpClientProvider),
+      appVersion: ref.read(appVersionProvider));
+  try {
+    final total = await api.fetchSetsCardTotal();
+    await prefs.setInt(UpdatePrefs.checkTotal, total);
+    await prefs.setString(
+        UpdatePrefs.checkAt, DateTime.now().toUtc().toIso8601String());
+    return total;
+  } catch (_) {
+    return cached; // offline — stale cache beats flip-flopping UI
+  }
+}
+
+/// Whether new cards exist upstream. null = unknown (offline / no DB yet).
+/// A database from before this check existed has no stored total; seed it
+/// from the current one and report "up to date" — no spurious re-download
+/// prompt, and the next real set release still triggers.
+Future<bool?> _setsUpdateAvailable(Ref ref, {required bool force}) async {
   final meta = await ref.watch(metaProvider.future);
-  final current = meta['bulkUpdatedAt'];
-  if (current == null) return false;
-  final last = DateTime.tryParse(meta['lastCheckAt'] ?? '');
-  if (last != null &&
-      DateTime.now().toUtc().difference(last.toUtc()).inHours < 24) {
+  final current = await _currentSetsTotal(ref, force: force);
+  if (current == null) return null;
+  final stored = int.tryParse(meta[MetaKeys.setsCardTotal] ?? '');
+  if (stored == null) {
+    final repo = ref.read(cardRepositoryProvider);
+    if (repo == null) return null;
+    await repo.setMetaEntry(MetaKeys.setsCardTotal, '$current');
+    ref.invalidate(metaProvider);
     return false;
   }
-  final repo = SyncRepository(
-    files: ref.read(dbFilesProvider),
-    client: ref.read(httpClientProvider),
-    appVersion: ref.read(appVersionProvider),
-  );
-  try {
-    return await repo.updateAvailable(current);
-  } catch (_) {
-    return false; // offline — never block the app on this
+  return current != stored;
+}
+
+/// Definitive server check for the data screen: true = new cards exist
+/// upstream, false = up to date, null = couldn't reach Scryfall. No
+/// throttle — one tiny GET per screen visit, refreshed after each sync
+/// (the DB swap cascades through metaProvider).
+final updateCheckProvider = FutureProvider.autoDispose<bool?>((ref) async {
+  final meta = await ref.watch(metaProvider.future);
+  if (meta.isEmpty) return true; // no database yet
+  return _setsUpdateAvailable(ref, force: true);
+});
+
+/// The /sets total the user dismissed the banner at; the banner stays
+/// hidden until the upstream total moves again.
+class DismissedUpdateNotifier extends Notifier<int?> {
+  @override
+  int? build() => ref.watch(prefsProvider).getInt(UpdatePrefs.dismissedTotal);
+
+  void dismiss(int total) {
+    state = total;
+    ref.read(prefsProvider).setInt(UpdatePrefs.dismissedTotal, total);
   }
+}
+
+final dismissedUpdateProvider =
+    NotifierProvider<DismissedUpdateNotifier, int?>(DismissedUpdateNotifier.new);
+
+/// Drives the search-screen banner: new cards exist upstream and the user
+/// hasn't dismissed this particular total. Network-checked at most once
+/// per 24h; dismissal recomputes instantly from the cached total.
+final updateAvailableProvider = FutureProvider<bool>((ref) async {
+  final dismissed = ref.watch(dismissedUpdateProvider);
+  final available = await _setsUpdateAvailable(ref, force: false);
+  if (available != true) return false;
+  final current = ref.read(prefsProvider).getInt(UpdatePrefs.checkTotal);
+  return current != null && current != dismissed;
 });
 
 // ---------------------------------------------------------------- search

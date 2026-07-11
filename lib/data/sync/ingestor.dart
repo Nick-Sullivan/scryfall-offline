@@ -95,7 +95,10 @@ class Ingestor {
 
   /// Derived data that needs the full card set: earliest release date,
   /// preferred (representative) print per card, FTS indexes, statistics.
-  Future<void> finalize({String? bulkUpdatedAt, String? rulingsUpdatedAt}) async {
+  Future<void> finalize(
+      {String? bulkUpdatedAt,
+      String? rulingsUpdatedAt,
+      int? setsCardTotal}) async {
     await db.customStatement('''
       UPDATE cards SET released_at_first = COALESCE((
         SELECT MIN(p.released_at) FROM prints p
@@ -125,6 +128,7 @@ class Ingestor {
       MetaKeys.lastCheckAt: now,
       if (bulkUpdatedAt != null) MetaKeys.bulkUpdatedAt: bulkUpdatedAt,
       if (rulingsUpdatedAt != null) MetaKeys.rulingsUpdatedAt: rulingsUpdatedAt,
+      if (setsCardTotal != null) MetaKeys.setsCardTotal: '$setsCardTotal',
     };
     await db.batch((b) => b.insertAll(
         db.meta,

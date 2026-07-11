@@ -77,6 +77,8 @@ keyAlias=upload
 keyPassword=...
 ```
 
+Listing images screenshotted with an emulator, then given a border with mockuphone.com
+
 ## Compliance
 
 Card data and images © Wizards of the Coast, provided by Scryfall. This is

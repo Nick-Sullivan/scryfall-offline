@@ -121,5 +121,6 @@ class MetaKeys {
   static const cardCount = 'cardCount';
   static const printCount = 'printCount';
   static const lastCheckAt = 'lastCheckAt';
+  static const setsCardTotal = 'setsCardTotal';
   static const schemaVersion = 'schemaVersion';
 }

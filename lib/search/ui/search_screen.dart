@@ -213,14 +213,21 @@ class _UpdateBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialBanner(
-      content: const Text('Updated card data is available.'),
+      content: const Text('New cards are available.'),
       actions: [
         TextButton(
           onPressed: () => context.push('/data'),
           child: const Text('Update'),
         ),
         TextButton(
-          onPressed: () => ref.invalidate(updateAvailableProvider),
+          onPressed: () {
+            // Always set when the banner is visible — availability required
+            // a known current total.
+            final total = ref.read(prefsProvider).getInt(UpdatePrefs.checkTotal);
+            if (total != null) {
+              ref.read(dismissedUpdateProvider.notifier).dismiss(total);
+            }
+          },
           child: const Text('Dismiss'),
         ),
       ],
