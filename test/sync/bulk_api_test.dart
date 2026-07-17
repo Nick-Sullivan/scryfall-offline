@@ -59,4 +59,59 @@ void main() {
       expect(api.fetchSetsCardTotal(), throwsA(isA<http.ClientException>()));
     });
   });
+
+  group('BulkApi.fetchOracleTagsInfo', () {
+    test('resolves the oracle_tags entry, preferring jsonl', () async {
+      final client = MockClient((req) async {
+        expect(req.url.toString(), 'https://api.scryfall.com/bulk-data');
+        expect(req.headers['User-Agent'], contains('ScryfallApp/'));
+        return http.Response(
+            jsonEncode({
+              'object': 'list',
+              'data': [
+                {
+                  'type': 'default_cards',
+                  'updated_at': '2026-07-17T21:11:17.183+00:00',
+                  'size': 1,
+                  'download_uri': 'https://data.scryfall.io/cards.json',
+                },
+                {
+                  'type': 'oracle_tags',
+                  'updated_at': '2026-07-17T21:00:36.823+00:00',
+                  'size': 18119952,
+                  'download_uri': 'https://data.scryfall.io/tags.json',
+                  'jsonl_download_uri':
+                      'https://data.scryfall.io/tags.jsonl.gz',
+                },
+              ],
+            }),
+            200);
+      });
+      final api = BulkApi(client, appVersion: 'test');
+      final info = await api.fetchOracleTagsInfo();
+      expect(info.type, 'oracle_tags');
+      expect(info.downloadUri.toString(),
+          'https://data.scryfall.io/tags.jsonl.gz');
+      expect(info.isGzip, isTrue);
+      expect(info.updatedAt, '2026-07-17T21:00:36.823+00:00');
+    });
+
+    test('throws when the entry is missing', () async {
+      final client = MockClient((req) async => http.Response(
+          jsonEncode({
+            'object': 'list',
+            'data': [
+              {
+                'type': 'default_cards',
+                'updated_at': 'x',
+                'size': 1,
+                'download_uri': 'https://data.scryfall.io/cards.json',
+              },
+            ],
+          }),
+          200));
+      final api = BulkApi(client, appVersion: 'test');
+      expect(api.fetchOracleTagsInfo(), throwsA(isA<StateError>()));
+    });
+  });
 }

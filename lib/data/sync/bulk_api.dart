@@ -44,6 +44,19 @@ class BulkApi {
   BulkApi(this.client, {required this.appVersion});
 
   Future<BulkDataIndex> fetchIndex() async {
+    final data = await _fetchEntries();
+    return BulkDataIndex(
+      defaultCards: _parseEntry(data, 'default_cards'),
+      rulings: _parseEntry(data, 'rulings'),
+    );
+  }
+
+  /// The `oracle_tags` bulk file (community Tagger data). Separate from
+  /// [fetchIndex] so the card-sync path never depends on this entry existing.
+  Future<BulkFileInfo> fetchOracleTagsInfo() async =>
+      _parseEntry(await _fetchEntries(), 'oracle_tags');
+
+  Future<List> _fetchEntries() async {
     final resp = await client.get(
       Uri.parse('https://api.scryfall.com/bulk-data'),
       headers: scryfallHeaders(appVersion),
@@ -52,28 +65,21 @@ class BulkApi {
       throw http.ClientException(
           'bulk-data endpoint returned HTTP ${resp.statusCode}');
     }
-    final data =
-        (jsonDecode(resp.body) as Map<String, dynamic>)['data'] as List;
+    return (jsonDecode(resp.body) as Map<String, dynamic>)['data'] as List;
+  }
 
-    BulkFileInfo parse(String type) {
-      final entry = data.cast<Map<String, dynamic>>().firstWhere(
-            (e) => e['type'] == type,
-            orElse: () =>
-                throw StateError("bulk-data has no '$type' entry"),
-          );
-      final uri = entry['jsonl_download_uri'] as String? ??
-          entry['download_uri'] as String;
-      return BulkFileInfo(
-        type: type,
-        updatedAt: entry['updated_at'] as String,
-        size: entry['size'] as int? ?? 0,
-        downloadUri: Uri.parse(uri),
-      );
-    }
-
-    return BulkDataIndex(
-      defaultCards: parse('default_cards'),
-      rulings: parse('rulings'),
+  BulkFileInfo _parseEntry(List data, String type) {
+    final entry = data.cast<Map<String, dynamic>>().firstWhere(
+          (e) => e['type'] == type,
+          orElse: () => throw StateError("bulk-data has no '$type' entry"),
+        );
+    final uri = entry['jsonl_download_uri'] as String? ??
+        entry['download_uri'] as String;
+    return BulkFileInfo(
+      type: type,
+      updatedAt: entry['updated_at'] as String,
+      size: entry['size'] as int? ?? 0,
+      downloadUri: Uri.parse(uri),
     );
   }
 

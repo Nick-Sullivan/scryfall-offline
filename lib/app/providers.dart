@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:flutter/material.dart' show RangeValues;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,8 +18,11 @@ import '../data/db/tables.dart';
 import '../data/images/image_store.dart';
 import '../data/repo/card_repository.dart';
 import '../data/sync/bulk_api.dart';
+import '../data/sync/downloader.dart';
 import '../data/sync/sync_progress.dart';
 import '../data/sync/sync_repository.dart';
+import '../data/tags/tag_database.dart' show TagPackMetaKeys;
+import '../data/tags/tag_ingest_isolate.dart';
 import '../search/compiler/sql_compiler.dart';
 import '../search/parser/grammar.dart';
 
@@ -43,7 +47,9 @@ class DatabaseManager extends Notifier<AppDatabase?> {
   @override
   AppDatabase? build() {
     final files = ref.watch(dbFilesProvider);
-    final db = files.hasLiveDatabase ? AppDatabase.background(files.live) : null;
+    final db = files.hasLiveDatabase
+        ? AppDatabase.background(files.live, tagPack: files.tags)
+        : null;
     ref.onDispose(() => db?.close());
     return db;
   }
@@ -54,7 +60,22 @@ class DatabaseManager extends Notifier<AppDatabase?> {
     state = null;
     await current?.close();
     files.swapStagingIntoLive();
-    state = AppDatabase.background(files.live);
+    state = AppDatabase.background(files.live, tagPack: files.tags);
+  }
+
+  /// Closes the live DB, runs [whileClosed], and reopens. Used by the tag
+  /// pack install/delete: the pack is attached per connection, so changing
+  /// tags.db requires every connection to re-run its setup (and Windows
+  /// won't rename/delete a file that is still open).
+  Future<void> reopen({void Function()? whileClosed}) async {
+    final files = ref.read(dbFilesProvider);
+    final current = state;
+    state = null;
+    await current?.close();
+    whileClosed?.call();
+    if (files.hasLiveDatabase) {
+      state = AppDatabase.background(files.live, tagPack: files.tags);
+    }
   }
 
   /// Deletes the local card database, returning the app to onboarding. The
@@ -206,6 +227,141 @@ final imagePackStatusProvider = FutureProvider<(int, int)>((ref) async {
   final repo = ref.watch(cardRepositoryProvider);
   final total = repo == null ? 0 : (await repo.imageTargets()).length;
   return (ref.watch(imageStoreProvider).countSync(), total);
+});
+
+// ------------------------------------------------------------- oracle tags
+
+class TagPackProgress {
+  final String label;
+
+  /// 0..1 for the download phase; null = indeterminate.
+  final double? fraction;
+  final bool running;
+  final String? error;
+
+  const TagPackProgress({
+    required this.label,
+    this.fraction,
+    required this.running,
+    this.error,
+  });
+}
+
+/// Downloads the `oracle_tags` bulk file and installs it as tags.db via a
+/// staging swap. Only runs when the user taps it — never automatically; a
+/// re-tap is the refresh path.
+class TagPackController extends Notifier<TagPackProgress?> {
+  /// Sanity floor: a truncated download or format break must never replace
+  /// a good pack (the real file has thousands of tags, ~300k taggings).
+  static const _minTags = 100;
+  static const _minTaggings = 10000;
+
+  @override
+  TagPackProgress? build() => null;
+
+  Future<void> start() async {
+    if (state?.running == true) return;
+    final files = ref.read(dbFilesProvider);
+    final client = ref.read(httpClientProvider);
+    final appVersion = ref.read(appVersionProvider);
+    void publish(String label, {double? fraction}) =>
+        state = TagPackProgress(label: label, fraction: fraction, running: true);
+
+    final download = File(p.join(files.syncDir.path, 'oracle_tags.jsonl.gz'));
+    try {
+      publish('Checking…');
+      final api = BulkApi(client, appVersion: appVersion);
+      final info = await api.fetchOracleTagsInfo();
+
+      files.syncDir.createSync(recursive: true);
+      var lastEmit = 0;
+      await downloadFile(client, info.downloadUri, download,
+          headers: scryfallHeaders(appVersion), onProgress: (recv, total) {
+        if (recv - lastEmit > 256 * 1024 || recv == total) {
+          lastEmit = recv;
+          publish('Downloading tag data…',
+              fraction: total == null ? null : recv / total);
+        }
+      });
+
+      publish('Importing tags…');
+      final done = Completer<({int tags, int taggings})>();
+      final port = ReceivePort();
+      port.listen((msg) {
+        final map = msg as Map;
+        switch (map['type']) {
+          case 'tags':
+            publish('Importing tags… ${map['n']}');
+          case 'done':
+            done.complete((
+              tags: map['tags'] as int,
+              taggings: map['taggings'] as int,
+            ));
+          case 'error':
+            done.completeError(StateError(map['message'] as String));
+        }
+      });
+      try {
+        await Isolate.spawn(
+          tagIngestIsolateMain,
+          TagIngestRequest(
+            progressPort: port.sendPort,
+            stagingDbPath: files.tagsStaging.path,
+            tagsPath: download.path,
+            tagsGzip: info.isGzip,
+            bulkUpdatedAt: info.updatedAt,
+          ),
+          errorsAreFatal: true,
+        );
+        final stats = await done.future;
+        if (stats.tags < _minTags || stats.taggings < _minTaggings) {
+          throw StateError('ingest produced only ${stats.tags} tags — '
+              'refusing to install');
+        }
+      } finally {
+        port.close();
+      }
+
+      publish('Installing…');
+      await ref
+          .read(databaseProvider.notifier)
+          .reopen(whileClosed: files.swapTagsStagingIntoLive);
+      state = null; // idle — tagPackStatusProvider shows the installed pack
+    } catch (e) {
+      if (files.tagsStaging.existsSync()) files.tagsStaging.deleteSync();
+      state = TagPackProgress(label: '', running: false, error: e.toString());
+    } finally {
+      if (download.existsSync()) download.deleteSync();
+      ref.invalidate(tagPackStatusProvider);
+    }
+  }
+
+  Future<void> delete() async {
+    if (state?.running == true) return;
+    final files = ref.read(dbFilesProvider);
+    await ref
+        .read(databaseProvider.notifier)
+        .reopen(whileClosed: files.deleteTagData);
+    state = null;
+    ref.invalidate(tagPackStatusProvider);
+  }
+}
+
+final tagPackProvider = NotifierProvider<TagPackController, TagPackProgress?>(
+    TagPackController.new);
+
+/// Installed-pack summary for the data screen; null = not installed.
+final tagPackStatusProvider =
+    FutureProvider<({int tags, int taggings, String? fetchedAt})?>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final files = ref.watch(dbFilesProvider);
+  if (db == null || !files.tags.existsSync()) return null;
+  final meta = await db.tagPackMetaEntries();
+  return (
+    tags: int.tryParse(meta[TagPackMetaKeys.tagCount] ?? '') ?? 0,
+    taggings: int.tryParse(meta[TagPackMetaKeys.taggingCount] ?? '') ?? 0,
+    fetchedAt: meta[TagPackMetaKeys.fetchedAt],
+  );
 });
 
 /// Prefs keys for the update check. The /sets card total is the update
@@ -368,9 +524,10 @@ class SearchNotifier extends Notifier<SearchState> {
 
   /// An empty query means "browse everything" — compiled by hand since the
   /// parser has no empty production.
-  static CompiledQuery _compile(String query) => query.trim().isEmpty
+  CompiledQuery _compile(String query) => query.trim().isEmpty
       ? const CompiledQuery('1=1', [], 'cards.name COLLATE NOCASE ASC')
-      : SqlCompiler.compile(ScryfallQueryParser.parse(query));
+      : SqlCompiler.compile(ScryfallQueryParser.parse(query),
+          tagsInstalled: ref.read(dbFilesProvider).tags.existsSync());
 
   Future<void> setQuery(String query) async {
     final gen = ++_generation;

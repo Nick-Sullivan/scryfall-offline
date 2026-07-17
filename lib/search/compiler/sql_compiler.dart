@@ -4,6 +4,7 @@ import '../../core/legalities.dart';
 import '../../core/mana.dart';
 import '../parser/ast.dart';
 import '../../data/db/tables.dart';
+import '../../data/tags/tag_database.dart' show normalizeTag;
 
 /// Compiled WHERE clause over the `cards` table (oracle grain, i.e. Scryfall
 /// `unique:cards`). Face- and print-level predicates become correlated
@@ -27,7 +28,14 @@ class SqlCompiler {
   String? _orderField;
   bool? _orderAsc;
 
-  static CompiledQuery compile(QueryNode root) => SqlCompiler()._run(root);
+  /// Whether the optional oracle-tag pack (tags.db, attached as `tagdb`) is
+  /// installed; `otag:` predicates throw a directions error without it.
+  final bool tagsInstalled;
+
+  SqlCompiler({this.tagsInstalled = true});
+
+  static CompiledQuery compile(QueryNode root, {bool tagsInstalled = true}) =>
+      SqlCompiler(tagsInstalled: tagsInstalled)._run(root);
 
   CompiledQuery _run(QueryNode root) {
     var where = _node(root);
@@ -209,6 +217,32 @@ class SqlCompiler {
         return _printsExists('p.games & $bit != 0');
       case 'year' || 'date':
         return _date(field, op, text(), p);
+
+      // ---- oracle tags (community Tagger data, optional download)
+      case 'otag' || 'oracletag' || 'function':
+        if (!tagsInstalled) {
+          throw QuerySemanticError(
+              "oracle tags aren't downloaded — get 'Tag data' from the "
+              'Card data screen',
+              p.position);
+        }
+        if (op != ':' && op != '=') {
+          throw QuerySemanticError(
+              "operator '$op' is not valid for '$field'", p.position);
+        }
+        // Matches slug or alias and includes all descendant tags, like
+        // Scryfall (tagdb is the attached tag pack).
+        final tag = normalizeTag(text());
+        _params.add(tag);
+        _params.add(tag);
+        return 'cards.oracle_id IN ('
+            'WITH RECURSIVE tset(id) AS ('
+            'SELECT id FROM tagdb.tags WHERE slug = ? '
+            'UNION SELECT tag_id FROM tagdb.tag_aliases WHERE alias = ? '
+            'UNION SELECT e.child_id FROM tagdb.tag_edges e '
+            'JOIN tset ON e.parent_id = tset.id'
+            ') SELECT tc.oracle_id FROM tagdb.tag_cards tc '
+            'JOIN tset ON tc.tag_id = tset.id)';
 
       default:
         throw QuerySemanticError.unknownField(field,
@@ -489,7 +523,8 @@ class SqlCompiler {
     'manavalue', 'cmc', 'power', 'toughness', 'loyalty', 'rarity', 'set',
     'artist', 'flavor', 'watermark', 'border', 'frame', 'format', 'banned',
     'restricted', 'layout', 'game', 'lang', 'year', 'date', 'produces',
-    'edhrec', 'order', 'direction', 'is', 'not',
+    'edhrec', 'order', 'direction', 'is', 'not', 'otag', 'oracletag',
+    'function',
   ];
 
   String? _suggestField(String field) {

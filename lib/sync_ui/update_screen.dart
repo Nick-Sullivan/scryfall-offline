@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../app/providers.dart';
@@ -85,6 +86,8 @@ class UpdateScreen extends ConsumerWidget {
           ),
           const Divider(height: 40),
           const _ImagePackSection(),
+          const Divider(height: 40),
+          const _TagPackSection(),
           const Divider(height: 40),
           OutlinedButton.icon(
             onPressed: running ? null : () => _confirmPurge(context, ref),
@@ -234,6 +237,90 @@ class _ImagePackSection extends ConsumerWidget {
           'hours; you can stop and resume any time — already-downloaded '
           'images are kept.',
           style: TextStyle(fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _TagPackSection extends ConsumerWidget {
+  const _TagPackSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(tagPackProvider);
+    final running = progress?.running ?? false;
+    final status = ref.watch(tagPackStatusProvider).valueOrNull;
+
+    String friendlyDate(String? iso) {
+      final dt = DateTime.tryParse(iso ?? '');
+      return dt == null ? '—' : dt.toLocal().toString().split(' ').first;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Oracle tags',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        if (running && progress != null) ...[
+          LinearProgressIndicator(value: progress.fraction),
+          const SizedBox(height: 8),
+          Text(progress.label),
+        ] else ...[
+          Text(
+            status == null
+                ? 'Not downloaded.'
+                : '${status.tags} tags covering ${status.taggings} cards, '
+                    'downloaded ${friendlyDate(status.fetchedAt)}.',
+          ),
+          if (progress?.error != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Download failed: ${progress!.error}',
+              style: TextStyle(
+                  fontSize: 12, color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => ref.read(tagPackProvider.notifier).start(),
+                icon: const Icon(Icons.sell_outlined),
+                label: Text(status == null
+                    ? 'Download tag data (~18 MB)'
+                    : 'Re-download'),
+              ),
+              const SizedBox(width: 8),
+              if (status != null)
+                OutlinedButton.icon(
+                  onPressed: () => ref.read(tagPackProvider.notifier).delete(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete tag data'),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 8),
+        const Text(
+          'Enables otag: / function: searches using community oracle tags '
+          'from Scryfall Tagger (e.g. otag:removal). Kept when card data '
+          'updates and never refreshed automatically — tap Re-download any '
+          'time for the latest tags.',
+          style: TextStyle(fontSize: 12),
+        ),
+        TextButton.icon(
+          style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+          onPressed: () => launchUrl(Uri.parse('https://tagger.scryfall.com'),
+              mode: LaunchMode.externalApplication),
+          icon: const Icon(Icons.open_in_new, size: 16),
+          label: const Text('Browse tags on Scryfall Tagger'),
         ),
       ],
     );

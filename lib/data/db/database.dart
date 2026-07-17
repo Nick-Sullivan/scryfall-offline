@@ -19,7 +19,13 @@ class AppDatabase extends _$AppDatabase {
   /// background isolates. The read pool lets slow queries (COUNT(*) of a
   /// broad search) run alongside detail/page queries instead of serializing
   /// them all on one connection; WAL is required for the pool to be used.
-  factory AppDatabase.background(File file) =>
+  ///
+  /// [tagPack] is the optional oracle-tag database; when the file exists it
+  /// is attached as `tagdb` on every connection (setup runs per connection,
+  /// including the read pool). Attach-only-if-exists keeps the file's
+  /// existence meaningful as the "pack installed" sentinel — ATTACH would
+  /// otherwise create an empty database.
+  factory AppDatabase.background(File file, {File? tagPack}) =>
       AppDatabase(NativeDatabase.createInBackground(
         file,
         readPool: 4,
@@ -27,14 +33,18 @@ class AppDatabase extends _$AppDatabase {
           setupSqlite(db);
           db.execute('PRAGMA journal_mode = WAL;');
           db.execute('PRAGMA busy_timeout = 5000;');
+          _attachTagPack(db, tagPack);
         },
       ));
 
   /// Same-isolate open. Used for the staging database inside the ingest
   /// isolate and for tests ([file] null = in-memory).
-  factory AppDatabase.local({File? file, bool staging = false}) {
+  factory AppDatabase.local({File? file, bool staging = false, File? tagPack}) {
     final executor = file == null
-        ? NativeDatabase.memory(setup: setupSqlite)
+        ? NativeDatabase.memory(setup: (db) {
+            setupSqlite(db);
+            _attachTagPack(db, tagPack);
+          })
         : NativeDatabase(file, setup: (db) {
             setupSqlite(db);
             if (staging) {
@@ -42,8 +52,15 @@ class AppDatabase extends _$AppDatabase {
               db.execute('PRAGMA journal_mode = OFF;');
               db.execute('PRAGMA synchronous = OFF;');
             }
+            _attachTagPack(db, tagPack);
           });
     return AppDatabase(executor);
+  }
+
+  static void _attachTagPack(sqlite.Database db, File? tagPack) {
+    if (tagPack == null || !tagPack.existsSync()) return;
+    final escaped = tagPack.path.replaceAll("'", "''");
+    db.execute("ATTACH DATABASE '$escaped' AS tagdb");
   }
 
   @override
@@ -75,6 +92,16 @@ class AppDatabase extends _$AppDatabase {
         "USING fts5(name, content='faces', content_rowid='id', tokenize='trigram')");
     await customStatement('CREATE VIRTUAL TABLE IF NOT EXISTS face_text_fts '
         "USING fts5(oracle_text, type_line, content='faces', content_rowid='id', tokenize='trigram')");
+  }
+
+  /// Meta entries of the attached tag pack. Only call when the pack is
+  /// installed (tags.db exists and was attached at open).
+  Future<Map<String, String>> tagPackMetaEntries() async {
+    final rows =
+        await customSelect('SELECT key, value FROM tagdb.tag_pack_meta').get();
+    return {
+      for (final r in rows) r.read<String>('key'): r.read<String>('value')
+    };
   }
 
   Future<void> rebuildFtsIndexes() async {
