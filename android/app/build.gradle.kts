@@ -18,7 +18,9 @@ val hasReleaseKeystore = keystoreProperties.containsKey("storeFile")
 
 android {
     namespace = "com.nicksullivan.scryfall_app"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned to satisfy Google Play's Aug 2026 target-API requirement (API 36).
+    // Overrides Flutter 3.32.8's default (35) so the level doesn't track Flutter.
+    compileSdk = 36
     // Plugins (sqlite3_flutter_libs et al.) need NDK 27; Flutter's default
     // pin is older. NDK versions are backward compatible.
     ndkVersion = "27.0.12077973"
@@ -35,7 +37,7 @@ android {
     defaultConfig {
         applicationId = "com.nicksullivan.scryfall_app"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
