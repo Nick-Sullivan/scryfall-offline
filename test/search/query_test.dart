@@ -177,6 +177,26 @@ void main() {
       expect(names.first, 'Black Lotus'); // cmc 0
     });
 
+    test('order:set follows the displayed print, not the first printing',
+        () async {
+      final bySet = await search('order:set direction:desc');
+      // Lightning Bolt is in the fixture twice; its preferred print is the
+      // 2022 CLB one, so the set sort leads with it even though the card
+      // first released in M10 (2009).
+      expect(bySet.first, 'Lightning Bolt');
+      expect(bySet.last, 'Black Lotus'); // lea, 1993
+      // Cards sharing a set (ELD, 2019-10-04) tie-break on name.
+      expect(bySet.indexOf('Bonecrusher Giant // Stomp'),
+          lessThan(bySet.indexOf('Once Upon a Time')));
+
+      expect((await search('order:set direction:asc')).first, 'Black Lotus');
+
+      // order:released still means "when did this card first exist", so Bolt
+      // lands mid-list there rather than at the top.
+      final byRelease = await search('order:released direction:desc');
+      expect(byRelease.first, isNot('Lightning Bolt'));
+    });
+
     test('semantic errors: unknown field with suggestion, bad values', () {
       expect(
           () => SqlCompiler.compile(ScryfallQueryParser.parse('colr:red')),

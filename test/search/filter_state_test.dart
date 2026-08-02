@@ -92,6 +92,8 @@ void main() {
           'order:released direction:desc');
       expect(const FilterState(sort: 'name', sortAscending: false).toSyntax(),
           'order:name direction:desc');
+      expect(const FilterState(sort: 'set', sortAscending: false).toSyntax(),
+          'order:set direction:desc');
     });
 
     test('set code', () {

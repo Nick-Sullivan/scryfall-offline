@@ -577,6 +577,14 @@ class SqlCompiler {
       'rarity' =>
         '(SELECT p.rarity FROM prints p WHERE p.id = cards.preferred_print_id) '
             '${dir(false)}, cards.name COLLATE NOCASE ASC',
+      // Groups by the set of the print we actually display. set_code breaks
+      // ties between sets sharing a release day (a main set and its promo or
+      // Commander companion) so they don't interleave.
+      'set' || 'edition' =>
+        '(SELECT p.released_at FROM prints p WHERE p.id = cards.preferred_print_id) '
+            '${dir(false)}, '
+            '(SELECT p.set_code FROM prints p WHERE p.id = cards.preferred_print_id) '
+            '${dir(false)}, cards.name COLLATE NOCASE ASC',
       'power' =>
         '(SELECT MAX(f.pow_num) FROM faces f WHERE f.oracle_id = cards.oracle_id) '
             '${dir(false)}, cards.name COLLATE NOCASE ASC',

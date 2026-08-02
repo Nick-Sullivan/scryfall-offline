@@ -611,7 +611,7 @@ class FilterState {
   final Set<String> rarities;
   final String? setCode;
   final String? setLabel;
-  final String sort; // name, cmc, released, edhrec, rarity, power
+  final String sort; // name, cmc, released, set, edhrec, rarity, power
   final bool sortAscending;
 
   const FilterState({

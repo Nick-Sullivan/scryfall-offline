@@ -10,6 +10,7 @@ const _sortLabels = {
   'name': 'Name',
   'cmc': 'Mana value',
   'released': 'Release date',
+  'set': 'Set',
   'edhrec': 'EDHREC rank',
   'rarity': 'Rarity',
   'power': 'Power',

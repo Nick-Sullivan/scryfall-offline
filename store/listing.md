@@ -29,7 +29,7 @@ device: no internet needed, no waiting, no ads.
   pow>tou, and much more
 • Tap-friendly filters: card name, types, rules text, colors, commander
   identity, mana value, format legality, rarity, and set
-• Sort by name, mana value, release date, EDHREC rank, rarity, or power
+• Sort by name, mana value, release date, set, EDHREC rank, rarity, or power
 
 **Built for deck building**
 • Card pages with rulings, legalities, and every printing
