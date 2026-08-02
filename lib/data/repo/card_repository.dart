@@ -248,6 +248,21 @@ class CardRepository {
     ];
   }
 
+  /// Oracle tags (slug, label) on one card, alphabetical by label. Direct
+  /// taggings only — the parent tags they roll up into aren't stored per card.
+  /// Same tag-pack requirement as [allTags].
+  Future<List<(String, String)>> tagsForCard(String oracleId) async {
+    final rows = await db.customSelect(
+        'SELECT t.slug, t.label FROM tagdb.tag_cards tc '
+        'JOIN tagdb.tags t ON t.id = tc.tag_id '
+        'WHERE tc.oracle_id = ? ORDER BY t.label',
+        variables: [Variable(oracleId)]).get();
+    return [
+      for (final r in rows)
+        (r.data['slug'] as String, r.data['label'] as String)
+    ];
+  }
+
   /// Oracle tags (slug, label) for the filter sheet's tag autocomplete. Only
   /// valid when the tag pack is attached — `tagdb` is unknown to SQLite
   /// otherwise, so callers must check first (see allTagsProvider).

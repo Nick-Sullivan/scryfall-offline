@@ -144,4 +144,29 @@ void main() {
       expect(tags.map((t) => t.$1), isNot(contains('squirrel-art')));
     });
   });
+
+  group('CardRepository.tagsForCard', () {
+    Future<String> oracleIdOf(String name) async {
+      final row = await db.customSelect(
+          'SELECT oracle_id FROM cards WHERE name = ?',
+          variables: [Variable(name)]).getSingle();
+      return row.data['oracle_id'] as String;
+    }
+
+    test('returns the card\'s tags sorted by label', () async {
+      final tags =
+          await CardRepository(db).tagsForCard(await oracleIdOf('Lightning Bolt'));
+      expect(tags, [('burn', 'burn'), ('card-advantage', 'card advantage')]);
+    });
+
+    test('an untagged card yields an empty list', () async {
+      // Tarmogoyf carries only an illustration tag, which ingest drops.
+      expect(await CardRepository(db).tagsForCard(await oracleIdOf('Tarmogoyf')),
+          isEmpty);
+    });
+
+    test('an unknown oracle id yields an empty list', () async {
+      expect(await CardRepository(db).tagsForCard('nope'), isEmpty);
+    });
+  });
 }

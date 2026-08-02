@@ -73,6 +73,7 @@ class _DetailBody extends StatelessWidget {
           if (i > 0) const Divider(height: 32),
           _FaceText(face: face),
         ],
+        _OracleTags(oracleId: card.oracleId),
         const Divider(height: 32),
         Text('Legalities', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -134,6 +135,52 @@ class _DetailBody extends StatelessWidget {
         textAlign: TextAlign.center,
       ),
     );
+  }
+}
+
+/// Oracle tags on this card, each a shortcut into a search for it. Renders
+/// nothing when the optional tag pack isn't installed (or the card is
+/// untagged), so the section simply doesn't exist without the download.
+class _OracleTags extends ConsumerWidget {
+  final String oracleId;
+
+  const _OracleTags({required this.oracleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tags = ref.watch(cardTagsProvider(oracleId)).valueOrNull ?? const [];
+    if (tags.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 32),
+        Text('Oracle tags', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final (slug, label) in tags)
+              ActionChip(
+                label: Text(label),
+                tooltip: 'Search for otag:$slug',
+                onPressed: () => _search(context, ref, slug, label),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Adds the tag to the active filter — rather than replacing it — so this
+  /// composes with whatever the user already had, then returns to the results.
+  void _search(BuildContext context, WidgetRef ref, String slug, String label) {
+    final next = ref.read(filterProvider).copyWith(
+        otags: {...ref.read(filterProvider).otags, slug: label});
+    ref.read(filterProvider.notifier).set(next);
+    ref.read(searchProvider.notifier).setQuery(next.toSyntax());
+    context.go('/');
   }
 }
 

@@ -857,6 +857,17 @@ final allTypesProvider = FutureProvider<List<String>>((ref) async {
   return repo == null ? const [] : repo.allTypes();
 });
 
+/// Oracle tags on one card, or empty when the pack isn't installed — the
+/// detail screen reads "empty" as "nothing to show" and omits the section.
+final cardTagsProvider = FutureProvider.autoDispose
+    .family<List<(String, String)>, String>((ref, oracleId) async {
+  final repo = ref.watch(cardRepositoryProvider);
+  if (repo == null || !ref.watch(dbFilesProvider).tags.existsSync()) {
+    return const [];
+  }
+  return repo.tagsForCard(oracleId);
+});
+
 /// Oracle tags for the filter sheet, or empty when the pack isn't installed —
 /// the UI reads "empty" as "no pack" and hides the section. Installing or
 /// deleting the pack reopens the database, which rebuilds the repository and
