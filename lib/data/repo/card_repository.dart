@@ -247,4 +247,17 @@ class CardRepository {
         (r.data['set_code'] as String, r.data['set_name'] as String)
     ];
   }
+
+  /// Oracle tags (slug, label) for the filter sheet's tag autocomplete. Only
+  /// valid when the tag pack is attached — `tagdb` is unknown to SQLite
+  /// otherwise, so callers must check first (see allTagsProvider).
+  Future<List<(String, String)>> allTags() async {
+    final rows = await db
+        .customSelect('SELECT slug, label FROM tagdb.tags ORDER BY label')
+        .get();
+    return [
+      for (final r in rows)
+        (r.data['slug'] as String, r.data['label'] as String)
+    ];
+  }
 }

@@ -122,6 +122,10 @@ class _FilterFormState extends ConsumerState<FilterForm> {
   Widget build(BuildContext context) {
     final sets = ref.watch(allSetsProvider).valueOrNull ?? const [];
     final types = ref.watch(allTypesProvider).valueOrNull ?? const <String>[];
+    // Empty means the optional tag pack isn't installed, which hides the
+    // section entirely.
+    final tags = ref.watch(allTagsProvider).valueOrNull ??
+        const <(String, String)>[];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -137,9 +141,14 @@ class _FilterFormState extends ConsumerState<FilterForm> {
         ),
         const SizedBox(height: 8),
         _label('Types'),
-        _TypePicker(
-          allTypes: types,
-          selected: _draft.types,
+        _ChipPicker<String>(
+          suggest: (q) => types
+              .where((ty) =>
+                  ty.toLowerCase().contains(q) && !_draft.types.contains(ty))
+              .take(20),
+          display: (ty) => ty,
+          label: 'Add a type',
+          hint: 'creature, legendary, elf …',
           onAdd: (t) => _apply(_draft.copyWith(types: {..._draft.types, t})),
         ),
         if (_draft.types.isNotEmpty)
@@ -168,6 +177,37 @@ class _FilterFormState extends ConsumerState<FilterForm> {
             helperText: 'Words match separately; use "quotes" for a phrase',
           ),
         ),
+        // Selected tags keep the section alive even without the pack, so a
+        // saved filter's chips stay removable after deleting the tag data —
+        // otherwise they'd keep emitting otag: terms the compiler rejects.
+        if (tags.isNotEmpty || _draft.otags.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _label('Oracle tags'),
+          _ChipPicker<(String, String)>(
+            suggest: (q) => rankOracleTags(tags, q, _draft.otags.keys.toSet()),
+            display: (t) => t.$2,
+            label: 'Add a tag',
+            hint: 'removal, ramp, card draw …',
+            onAdd: (t) =>
+                _apply(_draft.copyWith(otags: {..._draft.otags, t.$1: t.$2})),
+          ),
+          if (_draft.otags.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final e in _draft.otags.entries)
+                    InputChip(
+                      label: Text(e.value),
+                      onDeleted: () => _apply(_draft.copyWith(
+                          otags: {..._draft.otags}..remove(e.key))),
+                    ),
+                ],
+              ),
+            ),
+        ],
         const SizedBox(height: 16),
         _label('Colors'),
         Wrap(
@@ -330,36 +370,71 @@ class _FilterFormState extends ConsumerState<FilterForm> {
       );
 }
 
-/// Type-to-search over every distinct type word in the database; picking a
-/// suggestion adds it as a chip and clears the field for the next one.
-class _TypePicker extends StatefulWidget {
-  final List<String> allTypes;
-  final Set<String> selected;
-  final ValueChanged<String> onAdd;
+/// Oracle tags matching [query] on label or slug, best match first. Straight
+/// alphabetical order buries the tag you asked for — "removal" sorts behind
+/// cycle-snc-r-shard-removal and friends — so exact matches lead, then
+/// prefixes, then anything else containing the query.
+@visibleForTesting
+List<(String, String)> rankOracleTags(
+  List<(String, String)> tags,
+  String query,
+  Set<String> exclude,
+) {
+  int rank((String, String) t) {
+    final label = t.$2.toLowerCase();
+    if (t.$1 == query || label == query) return 0;
+    if (t.$1.startsWith(query) || label.startsWith(query)) return 1;
+    return 2;
+  }
 
-  const _TypePicker({
-    required this.allTypes,
-    required this.selected,
+  final hits = [
+    for (final t in tags)
+      if (!exclude.contains(t.$1) &&
+          (t.$2.toLowerCase().contains(query) || t.$1.contains(query)))
+        t
+  ];
+  // sort() isn't stable, so tie-break on label to keep the order fixed.
+  hits.sort((a, b) {
+    final byRank = rank(a).compareTo(rank(b));
+    return byRank != 0 ? byRank : a.$2.compareTo(b.$2);
+  });
+  return hits.take(20).toList();
+}
+
+/// Type-to-search field that feeds a row of chips: picking a suggestion adds
+/// it and clears the field for the next one. [suggest] owns the matching and
+/// drops anything already selected; an empty query never opens the dropdown.
+class _ChipPicker<T extends Object> extends StatefulWidget {
+  final Iterable<T> Function(String query) suggest;
+  final String Function(T) display;
+  final ValueChanged<T> onAdd;
+  final String label;
+  final String hint;
+
+  const _ChipPicker({
+    super.key,
+    required this.suggest,
+    required this.display,
     required this.onAdd,
+    required this.label,
+    required this.hint,
   });
 
   @override
-  State<_TypePicker> createState() => _TypePickerState();
+  State<_ChipPicker<T>> createState() => _ChipPickerState<T>();
 }
 
-class _TypePickerState extends State<_TypePicker> {
+class _ChipPickerState<T extends Object> extends State<_ChipPicker<T>> {
   TextEditingController? _field;
 
   @override
   Widget build(BuildContext context) {
-    return Autocomplete<String>(
+    return Autocomplete<T>(
+      displayStringForOption: widget.display,
       optionsBuilder: (t) {
         final q = t.text.trim().toLowerCase();
-        if (q.isEmpty) return const Iterable<String>.empty();
-        return widget.allTypes
-            .where((ty) =>
-                ty.toLowerCase().contains(q) && !widget.selected.contains(ty))
-            .take(20);
+        if (q.isEmpty) return const Iterable.empty();
+        return widget.suggest(q);
       },
       onSelected: (t) {
         widget.onAdd(t);
@@ -372,9 +447,9 @@ class _TypePickerState extends State<_TypePicker> {
         return TextField(
           controller: controller,
           focusNode: focus,
-          decoration: const InputDecoration(
-            labelText: 'Add a type',
-            hintText: 'creature, legendary, elf …',
+          decoration: InputDecoration(
+            labelText: widget.label,
+            hintText: widget.hint,
           ),
           onTapOutside: (_) => focus.unfocus(),
         );
@@ -392,7 +467,7 @@ class _TypePickerState extends State<_TypePicker> {
                 for (final o in options)
                   ListTile(
                     dense: true,
-                    title: Text(o),
+                    title: Text(widget.display(o)),
                     onTap: () => onSelected(o),
                   ),
               ],

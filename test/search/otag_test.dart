@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scryfall_app/core/errors.dart';
 import 'package:scryfall_app/data/db/database.dart';
+import 'package:scryfall_app/data/repo/card_repository.dart';
 import 'package:scryfall_app/data/sync/bulk_line_decoder.dart';
 import 'package:scryfall_app/data/sync/ingestor.dart';
 import 'package:scryfall_app/data/tags/tag_database.dart';
@@ -123,6 +124,24 @@ void main() {
           () => search('otga:removal'),
           throwsA(isA<QuerySemanticError>()
               .having((e) => e.message, 'message', contains('otag'))));
+    });
+  });
+
+  group('CardRepository.allTags', () {
+    test('returns (slug, label) pairs sorted by label', () async {
+      final tags = await CardRepository(db).allTags();
+      expect(tags, [
+        ('burn', 'burn'),
+        ('burn-any-target', 'burn any target'),
+        ('card-advantage', 'card advantage'),
+        ('mana-rock', 'mana rock'),
+        ('removal', 'removal'),
+      ]);
+    });
+
+    test('skips non-oracle tags', () async {
+      final tags = await CardRepository(db).allTags();
+      expect(tags.map((t) => t.$1), isNot(contains('squirrel-art')));
     });
   });
 }

@@ -603,6 +603,11 @@ class FilterState {
   final String nameText;
   final Set<String> types;
   final String oracleText;
+
+  /// Selected oracle tags as slug → label. The slug is what `otag:` needs;
+  /// the label rides along so chips stay readable even if the tag pack is
+  /// deleted out from under a saved filter.
+  final Map<String, String> otags;
   final Set<String> colors;
   final String colorMode; // ':', '=', '<='
   final Set<String> identity;
@@ -618,6 +623,7 @@ class FilterState {
     this.nameText = '',
     this.types = const {},
     this.oracleText = '',
+    this.otags = const {},
     this.colors = const {},
     this.colorMode = ':',
     this.identity = const {},
@@ -634,6 +640,7 @@ class FilterState {
     String? nameText,
     Set<String>? types,
     String? oracleText,
+    Map<String, String>? otags,
     Set<String>? colors,
     String? colorMode,
     Set<String>? identity,
@@ -651,6 +658,7 @@ class FilterState {
         nameText: nameText ?? this.nameText,
         types: types ?? this.types,
         oracleText: oracleText ?? this.oracleText,
+        otags: otags ?? this.otags,
         colors: colors ?? this.colors,
         colorMode: colorMode ?? this.colorMode,
         identity: identity ?? this.identity,
@@ -677,6 +685,9 @@ class FilterState {
     }
     for (final term in _terms(oracleText)) {
       parts.add('o:${quote(term)}');
+    }
+    for (final slug in otags.keys) {
+      parts.add('otag:${quote(slug)}');
     }
     if (colors.isNotEmpty) {
       parts.add('c$colorMode${colors.join().toLowerCase()}');
@@ -713,6 +724,7 @@ class FilterState {
         'nameText': nameText,
         'types': types.toList(),
         'oracleText': oracleText,
+        'otags': otags,
         'colors': colors.toList(),
         'colorMode': colorMode,
         'identity': identity.toList(),
@@ -730,6 +742,9 @@ class FilterState {
         nameText: json['nameText'] as String? ?? '',
         types: {...(json['types'] as List? ?? const []).cast<String>()},
         oracleText: json['oracleText'] as String? ?? '',
+        otags: {
+          ...(json['otags'] as Map? ?? const {}).cast<String, String>()
+        },
         colors: {...(json['colors'] as List? ?? const []).cast<String>()},
         colorMode: json['colorMode'] as String? ?? ':',
         identity: {...(json['identity'] as List? ?? const []).cast<String>()},
@@ -840,4 +855,16 @@ final allSetsProvider = FutureProvider<List<(String, String)>>((ref) async {
 final allTypesProvider = FutureProvider<List<String>>((ref) async {
   final repo = ref.watch(cardRepositoryProvider);
   return repo == null ? const [] : repo.allTypes();
+});
+
+/// Oracle tags for the filter sheet, or empty when the pack isn't installed —
+/// the UI reads "empty" as "no pack" and hides the section. Installing or
+/// deleting the pack reopens the database, which rebuilds the repository and
+/// re-runs this, so no separate reactive install flag is needed.
+final allTagsProvider = FutureProvider<List<(String, String)>>((ref) async {
+  final repo = ref.watch(cardRepositoryProvider);
+  if (repo == null || !ref.watch(dbFilesProvider).tags.existsSync()) {
+    return const [];
+  }
+  return repo.allTags();
 });

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart' show RangeValues;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scryfall_app/app/providers.dart';
@@ -48,6 +50,18 @@ void main() {
       expect(
         const FilterState(types: {'Legendary', 'Elf'}).toSyntax(),
         't:legendary t:elf',
+      );
+    });
+
+    test('selected oracle tags emit otag: terms keyed by slug', () {
+      expect(
+        const FilterState(otags: {'removal': 'Removal'}).toSyntax(),
+        'otag:removal',
+      );
+      expect(
+        const FilterState(
+            otags: {'removal': 'Removal', 'mana-rock': 'Mana Rock'}).toSyntax(),
+        'otag:removal otag:mana-rock',
       );
     });
 
@@ -107,6 +121,7 @@ void main() {
         nameText: 'dragon',
         types: {'Legendary', 'Creature'},
         oracleText: 'draw a card',
+        otags: {'removal': 'Removal'},
         colors: {'W', 'U'},
         colorMode: '<=',
         identity: {'B'},
@@ -118,9 +133,13 @@ void main() {
         sort: 'edhrec',
         sortAscending: false,
       );
-      final restored = FilterState.fromJson(original.toJson());
+      // Through a real encode/decode, not just the maps — otags arrives as
+      // Map<String, dynamic> from jsonDecode and has to survive the cast.
+      final restored = FilterState.fromJson(
+          jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>);
       expect(restored.toSyntax(), original.toSyntax());
       expect(restored.types, original.types);
+      expect(restored.otags, original.otags);
       expect(restored.setLabel, original.setLabel);
     });
 
