@@ -8,10 +8,11 @@ import '../../app/providers.dart';
 import '../../data/repo/card_repository.dart';
 
 /// Grid config shared by the search and saved results grids, so both honour
-/// the user's card-size preference. [maxExtent] comes from [CardSize].
-SliverGridDelegate cardGridDelegate(double maxExtent) =>
-    SliverGridDelegateWithMaxCrossAxisExtent(
-      maxCrossAxisExtent: maxExtent,
+/// the user's cards-per-row preference. [columns] is a fixed count, so the
+/// grid shows exactly what was picked regardless of screen width.
+SliverGridDelegate cardGridDelegate(int columns) =>
+    SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
       childAspectRatio: 488 / 680, // Scryfall 'normal' image ratio
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,

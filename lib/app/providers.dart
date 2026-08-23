@@ -799,47 +799,35 @@ class FilterNotifier extends Notifier<FilterState> {
 final filterProvider =
     NotifierProvider<FilterNotifier, FilterState>(FilterNotifier.new);
 
-// ------------------------------------------------------------- card size
+// ---------------------------------------------------------- cards per row
 
-/// How wide a card tile may get in the result grids. Persisted in prefs (not
-/// the card DB, which gets replaced on every data update).
-enum CardSize {
-  small(130, 'Small'),
-  medium(190, 'Medium'),
-  large(420, 'Large');
+const cardColumnOptions = [1, 2, 3, 4];
 
-  const CardSize(this.maxExtent, this.label);
+/// What the grids showed before this was configurable, on a phone.
+const defaultCardColumns = 2;
 
-  /// Feeds SliverGridDelegateWithMaxCrossAxisExtent — a cap, not a fixed
-  /// width, so columns still divide the viewport evenly. That rounding is why
-  /// the values are spread so far apart: the delegate uses
-  /// ceil(width / maxExtent) columns, so on a ~390dp phone anything from 189
-  /// to 376 lands on the same two columns as [medium] and the setting would
-  /// look broken. These land on 3 / 2 / 1 columns on a phone, and still step
-  /// evenly on a tablet.
-  final double maxExtent;
-  final String label;
-}
-
-class CardSizeNotifier extends Notifier<CardSize> {
-  static const _key = 'cardSize';
+/// How many card tiles the result grids fit across. A count rather than a
+/// width, so what the user picks is what they get on every screen size.
+/// Persisted in prefs (not the card DB, which gets replaced on every update).
+class CardColumnsNotifier extends Notifier<int> {
+  static const _key = 'cardColumns';
 
   @override
-  CardSize build() {
-    final raw = ref.watch(prefsProvider).getString(_key);
-    // An unknown name means a stale or hand-edited value — fall back rather
-    // than throwing on a preference read.
-    return CardSize.values.asNameMap()[raw] ?? CardSize.medium;
+  int build() {
+    final raw = ref.watch(prefsProvider).getInt(_key);
+    // Guard the range so a stale or hand-edited value can't lay out a grid
+    // with zero or absurdly many columns.
+    return cardColumnOptions.contains(raw) ? raw! : defaultCardColumns;
   }
 
-  void set(CardSize next) {
+  void set(int next) {
     state = next;
-    ref.read(prefsProvider).setString(_key, next.name);
+    ref.read(prefsProvider).setInt(_key, next);
   }
 }
 
-final cardSizeProvider =
-    NotifierProvider<CardSizeNotifier, CardSize>(CardSizeNotifier.new);
+final cardColumnsProvider =
+    NotifierProvider<CardColumnsNotifier, int>(CardColumnsNotifier.new);
 
 // ----------------------------------------------------------- saved cards
 

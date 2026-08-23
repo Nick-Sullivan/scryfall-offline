@@ -62,7 +62,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final search = ref.watch(searchProvider);
-    final cardSize = ref.watch(cardSizeProvider);
+    final columns = ref.watch(cardColumnsProvider);
     final updateAvailable =
         ref.watch(updateAvailableProvider).valueOrNull ?? false;
 
@@ -135,13 +135,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
             ),
-          Expanded(child: _buildBody(search, cardSize)),
+          Expanded(child: _buildBody(search, columns)),
         ],
       ),
     );
   }
 
-  Widget _buildBody(SearchState search, CardSize cardSize) {
+  Widget _buildBody(SearchState search, int columns) {
     if (search.error != null) {
       return const SizedBox.shrink();
     }
@@ -154,7 +154,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return GridView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(8),
-      gridDelegate: cardGridDelegate(cardSize.maxExtent),
+      gridDelegate: cardGridDelegate(columns),
       itemCount: search.items.length + (search.loadingMore ? 1 : 0),
       itemBuilder: (context, i) {
         if (i >= search.items.length) {

@@ -20,7 +20,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final cardSize = ref.watch(cardSizeProvider);
+    final columns = ref.watch(cardColumnsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -31,21 +31,26 @@ class SettingsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Card size', style: theme.textTheme.titleMedium),
+                Text('Cards per row', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'How big cards appear in the search and saved grids.',
+                  'How many cards fit across the search and saved grids.',
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<CardSize>(
+                SegmentedButton<int>(
+                  // Without this the check icon widens whichever segment is
+                  // selected, and since every segment matches the widest one
+                  // the whole control resizes as you toggle. The selected
+                  // segment is already obvious from its fill.
+                  showSelectedIcon: false,
                   segments: [
-                    for (final s in CardSize.values)
-                      ButtonSegment(value: s, label: Text(s.label)),
+                    for (final n in cardColumnOptions)
+                      ButtonSegment(value: n, label: Text('$n')),
                   ],
-                  selected: {cardSize},
+                  selected: {columns},
                   onSelectionChanged: (s) =>
-                      ref.read(cardSizeProvider.notifier).set(s.first),
+                      ref.read(cardColumnsProvider.notifier).set(s.first),
                 ),
               ],
             ),

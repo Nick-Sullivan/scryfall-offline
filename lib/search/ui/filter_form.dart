@@ -347,6 +347,10 @@ class _FilterFormState extends ConsumerState<FilterForm> {
         ),
         const SizedBox(height: 8),
         SegmentedButton<bool>(
+          // 'Descending' is wider than 'Ascending', and the check icon lands
+          // on whichever is selected — without this the control jumps width
+          // every time the direction changes.
+          showSelectedIcon: false,
           segments: const [
             ButtonSegment(value: true, label: Text('Ascending')),
             ButtonSegment(value: false, label: Text('Descending')),
