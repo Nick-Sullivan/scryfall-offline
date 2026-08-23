@@ -60,11 +60,17 @@ class FilterForm extends ConsumerStatefulWidget {
   /// Extra widgets shown above the first field, scrolling with the form.
   final List<Widget> header;
 
+  /// Renders as a non-scrolling column sized to its content, for embedding in
+  /// an outer scroll view (the settings screen's collapsible section). The
+  /// filter sheet leaves this false and lets the form scroll itself.
+  final bool embedded;
+
   const FilterForm({
     super.key,
     required this.value,
     required this.onChanged,
     this.header = const [],
+    this.embedded = false,
   });
 
   @override
@@ -128,7 +134,12 @@ class _FilterFormState extends ConsumerState<FilterForm> {
         const <(String, String)>[];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      shrinkWrap: widget.embedded,
+      physics:
+          widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      padding: widget.embedded
+          ? const EdgeInsets.fromLTRB(16, 0, 16, 16)
+          : const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
         ...widget.header,
         TextField(

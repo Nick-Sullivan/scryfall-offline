@@ -13,6 +13,7 @@ class SavedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ids = ref.watch(savedCardsProvider);
     final cards = ref.watch(savedCardSummariesProvider);
+    final cardSize = ref.watch(cardSizeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -41,12 +42,7 @@ class SavedScreen extends ConsumerWidget {
               error: (e, _) => Center(child: Text('Failed to load: $e')),
               data: (items) => GridView.builder(
                 padding: const EdgeInsets.all(8),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 190,
-                  childAspectRatio: 488 / 680,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
+                gridDelegate: cardGridDelegate(cardSize.maxExtent),
                 itemCount: items.length,
                 itemBuilder: (context, i) {
                   final card = items[i];

@@ -7,6 +7,16 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../data/repo/card_repository.dart';
 
+/// Grid config shared by the search and saved results grids, so both honour
+/// the user's card-size preference. [maxExtent] comes from [CardSize].
+SliverGridDelegate cardGridDelegate(double maxExtent) =>
+    SliverGridDelegateWithMaxCrossAxisExtent(
+      maxCrossAxisExtent: maxExtent,
+      childAspectRatio: 488 / 680, // Scryfall 'normal' image ratio
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+    );
+
 /// One card in a results grid. Prefers the offline image pack, then the
 /// 'normal' network image, with a text tile underneath while loading and as
 /// the no-image fallback. Long-press toggles the card in the saved list;

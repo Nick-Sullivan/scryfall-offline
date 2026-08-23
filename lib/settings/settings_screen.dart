@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/providers.dart';
 import '../search/ui/filter_form.dart';
 
-/// Edits the persisted default filter — what the app opens with and what the
-/// filter panel's Reset returns to. Changes save and apply immediately.
+/// App preferences. Card size applies to both results grids; the default
+/// filter — what the app opens with and what the filter panel's Reset returns
+/// to — lives in its own collapsible section. Everything saves immediately.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -18,29 +19,63 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cardSize = ref.watch(cardSizeProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        actions: [
-          TextButton(
-            onPressed: () => _set(ref, const FilterState()),
-            child: const Text('Clear'),
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Card size', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'How big cards appear in the search and saved grids.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<CardSize>(
+                  segments: [
+                    for (final s in CardSize.values)
+                      ButtonSegment(value: s, label: Text(s.label)),
+                  ],
+                  selected: {cardSize},
+                  onSelectionChanged: (s) =>
+                      ref.read(cardSizeProvider.notifier).set(s.first),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      body: FilterForm(
-        value: ref.watch(defaultFilterProvider),
-        onChanged: (next) => _set(ref, next),
-        header: [
-          const SizedBox(height: 12),
-          Text('Default filter',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Applied when the app opens and when you reset the filters.',
-            style: Theme.of(context).textTheme.bodySmall,
+          const Divider(height: 40),
+          // The Clear action lives inside this section, not the app bar, so it
+          // reads as "clear the filter" rather than "reset all settings".
+          ExpansionTile(
+            title: const Text('Default filter'),
+            subtitle: const Text(
+                'Applied when the app opens and when you reset the filters.'),
+            childrenPadding: EdgeInsets.zero,
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton(
+                    onPressed: () => _set(ref, const FilterState()),
+                    child: const Text('Clear'),
+                  ),
+                ),
+              ),
+              FilterForm(
+                value: ref.watch(defaultFilterProvider),
+                onChanged: (next) => _set(ref, next),
+                embedded: true,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
         ],
       ),
     );

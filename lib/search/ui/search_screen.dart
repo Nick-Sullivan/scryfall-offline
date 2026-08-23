@@ -62,6 +62,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final search = ref.watch(searchProvider);
+    final cardSize = ref.watch(cardSizeProvider);
     final updateAvailable =
         ref.watch(updateAvailableProvider).valueOrNull ?? false;
 
@@ -134,13 +135,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
             ),
-          Expanded(child: _buildBody(search)),
+          Expanded(child: _buildBody(search, cardSize)),
         ],
       ),
     );
   }
 
-  Widget _buildBody(SearchState search) {
+  Widget _buildBody(SearchState search, CardSize cardSize) {
     if (search.error != null) {
       return const SizedBox.shrink();
     }
@@ -153,12 +154,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return GridView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 190,
-        childAspectRatio: 488 / 680, // Scryfall 'normal' image ratio
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
+      gridDelegate: cardGridDelegate(cardSize.maxExtent),
       itemCount: search.items.length + (search.loadingMore ? 1 : 0),
       itemBuilder: (context, i) {
         if (i >= search.items.length) {

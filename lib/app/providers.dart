@@ -799,6 +799,48 @@ class FilterNotifier extends Notifier<FilterState> {
 final filterProvider =
     NotifierProvider<FilterNotifier, FilterState>(FilterNotifier.new);
 
+// ------------------------------------------------------------- card size
+
+/// How wide a card tile may get in the result grids. Persisted in prefs (not
+/// the card DB, which gets replaced on every data update).
+enum CardSize {
+  small(130, 'Small'),
+  medium(190, 'Medium'),
+  large(420, 'Large');
+
+  const CardSize(this.maxExtent, this.label);
+
+  /// Feeds SliverGridDelegateWithMaxCrossAxisExtent — a cap, not a fixed
+  /// width, so columns still divide the viewport evenly. That rounding is why
+  /// the values are spread so far apart: the delegate uses
+  /// ceil(width / maxExtent) columns, so on a ~390dp phone anything from 189
+  /// to 376 lands on the same two columns as [medium] and the setting would
+  /// look broken. These land on 3 / 2 / 1 columns on a phone, and still step
+  /// evenly on a tablet.
+  final double maxExtent;
+  final String label;
+}
+
+class CardSizeNotifier extends Notifier<CardSize> {
+  static const _key = 'cardSize';
+
+  @override
+  CardSize build() {
+    final raw = ref.watch(prefsProvider).getString(_key);
+    // An unknown name means a stale or hand-edited value — fall back rather
+    // than throwing on a preference read.
+    return CardSize.values.asNameMap()[raw] ?? CardSize.medium;
+  }
+
+  void set(CardSize next) {
+    state = next;
+    ref.read(prefsProvider).setString(_key, next.name);
+  }
+}
+
+final cardSizeProvider =
+    NotifierProvider<CardSizeNotifier, CardSize>(CardSizeNotifier.new);
+
 // ----------------------------------------------------------- saved cards
 
 /// Oracle ids the user bookmarked to view later, newest first. Persisted in
