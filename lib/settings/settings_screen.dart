@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';
+import '../data/images/art_saver.dart';
 import '../search/ui/filter_form.dart';
 
 /// App preferences. Card size applies to both results grids; the default
@@ -56,6 +59,19 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 40),
+          // iOS saves art to a Photos album, so there's no folder to choose.
+          if (Platform.isAndroid) ...[
+            ListTile(
+              title: const Text('Art download folder'),
+              subtitle: Text(switch (ref.watch(artFolderProvider)) {
+                final folder? => artFolderPath(folder),
+                null => 'Ask on first download',
+              }),
+              trailing: const Icon(Icons.folder_open),
+              onTap: () => ref.read(artFolderProvider.notifier).pick(),
+            ),
+            const Divider(height: 24),
+          ],
           // The Clear action lives inside this section, not the app bar, so it
           // reads as "clear the filter" rather than "reset all settings".
           ExpansionTile(

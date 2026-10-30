@@ -30,6 +30,39 @@ void main() {
 
     tearDownAll(() => db.close());
 
+    test('pngUrl rewrites a normal CDN URL to the PNG size', () {
+      expect(
+          pngUrl('https://cards.scryfall.io/normal/back/1/1/'
+              '11bf83bb-c95b-4b4f-9a56-ce7a1816307a.jpg?1782714804'),
+          'https://cards.scryfall.io/png/back/1/1/'
+          '11bf83bb-c95b-4b4f-9a56-ce7a1816307a.png?1782714804');
+    });
+
+    test('artTargets covers every printing, plus backs of DFCs', () async {
+      final delver = await repo.artTargets('edd531b9-f615-4399-8c8c-1c5e18c4acbf');
+      expect(delver.map((t) => t.name), [
+        'Delver of Secrets - Insectile Aberration - ISD 51',
+        'Delver of Secrets - Insectile Aberration - ISD 51 (back)',
+      ]);
+      expect(delver.map((t) => t.url), [
+        'https://cards.scryfall.io/png/front/1/1/'
+            '11bf83bb-c95b-4b4f-9a56-ce7a1816307a.png?1782714804',
+        'https://cards.scryfall.io/png/back/1/1/'
+            '11bf83bb-c95b-4b4f-9a56-ce7a1816307a.png?1782714804',
+      ]);
+
+      final single = await db
+          .customSelect("SELECT oracle_id, COUNT(*) AS n FROM prints "
+              "WHERE raw_json NOT LIKE '%card_faces%' "
+              'AND image_uri_normal IS NOT NULL '
+              'GROUP BY oracle_id LIMIT 1')
+          .getSingle();
+      final targets =
+          await repo.artTargets(single.data['oracle_id'] as String);
+      expect(targets, hasLength(single.data['n']));
+      expect(targets.every((t) => t.url.contains('/png/front/')), isTrue);
+    });
+
     test('loads the preferred print with its printings and raw json',
         () async {
       final card = await db

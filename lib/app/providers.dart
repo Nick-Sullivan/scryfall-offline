@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import '../data/db/database.dart';
 import '../data/db/db_files.dart';
 import '../data/db/tables.dart';
+import '../data/images/art_saver.dart';
 import '../data/images/image_store.dart';
 import '../data/repo/card_repository.dart';
 import '../data/sync/bulk_api.dart';
@@ -220,6 +221,134 @@ class ImagePackController extends Notifier<ImagePackProgress?> {
 final imagePackProvider =
     NotifierProvider<ImagePackController, ImagePackProgress?>(
         ImagePackController.new);
+
+// ------------------------------------------------------------- art export
+
+/// The folder "Download all art" saves into on Android, picked once and
+/// remembered. Persisted in prefs (not the card DB, which gets replaced on
+/// every update).
+class ArtFolderNotifier extends Notifier<ArtFolder?> {
+  static const _uriKey = 'artFolderUri';
+  static const _nameKey = 'artFolderName';
+
+  @override
+  ArtFolder? build() {
+    final prefs = ref.watch(prefsProvider);
+    final uri = prefs.getString(_uriKey);
+    final name = prefs.getString(_nameKey);
+    return uri == null || name == null ? null : (uri: uri, name: name);
+  }
+
+  /// Opens the folder picker; keeps the current folder if the user cancels.
+  Future<ArtFolder?> pick() async {
+    final picked = await ArtFolderChannel.pickFolder();
+    if (picked != null) {
+      state = picked;
+      final prefs = ref.read(prefsProvider);
+      await prefs.setString(_uriKey, picked.uri);
+      await prefs.setString(_nameKey, picked.name);
+    }
+    return picked;
+  }
+
+  void clear() {
+    state = null;
+    ref.read(prefsProvider)
+      ..remove(_uriKey)
+      ..remove(_nameKey);
+  }
+}
+
+final artFolderProvider =
+    NotifierProvider<ArtFolderNotifier, ArtFolder?>(ArtFolderNotifier.new);
+
+class ArtExportProgress {
+  final String oracleId;
+  final ArtSaver saver;
+  final int total;
+  final int done;
+  final int failed;
+  final bool running;
+
+  /// The save folder disappeared mid-run; the run stopped and the folder
+  /// setting was cleared.
+  final bool folderLost;
+
+  const ArtExportProgress({
+    required this.oracleId,
+    required this.saver,
+    required this.total,
+    required this.done,
+    required this.failed,
+    required this.running,
+    this.folderLost = false,
+  });
+}
+
+/// Saves full-card PNGs of every printing of one card through an
+/// [ArtSaver]. One export at a time; it keeps running if the user leaves the
+/// detail screen.
+class ArtExportController extends Notifier<ArtExportProgress?> {
+  bool _cancel = false;
+
+  @override
+  ArtExportProgress? build() => null;
+
+  Future<void> start(
+      String oracleId, List<ArtTarget> targets, ArtSaver saver) async {
+    if (state?.running == true) return;
+    final client = ref.read(httpClientProvider);
+    _cancel = false;
+
+    var done = 0;
+    var failed = 0;
+    var folderLost = false;
+    void publish(bool running) {
+      state = ArtExportProgress(
+          oracleId: oracleId,
+          saver: saver,
+          total: targets.length,
+          done: done,
+          failed: failed,
+          running: running,
+          folderLost: folderLost);
+    }
+
+    publish(true);
+
+    // Same pool shape as ImagePackController: polite to the CDN, and no
+    // await between read and increment of `next`, so no race.
+    var next = 0;
+    Future<void> worker() async {
+      while (!_cancel && next < targets.length) {
+        final target = targets[next++];
+        try {
+          final response = await client.get(Uri.parse(target.url));
+          if (response.statusCode != 200) throw Exception(response.statusCode);
+          await saver.save(target.name, response.bodyBytes);
+          done++;
+        } on ArtFolderLostException {
+          // Every later write would fail the same way.
+          folderLost = true;
+          _cancel = true;
+        } catch (_) {
+          failed++;
+        }
+        publish(true);
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < 4; i++) worker()]);
+    if (folderLost) ref.read(artFolderProvider.notifier).clear();
+    publish(false);
+  }
+
+  void cancel() => _cancel = true;
+}
+
+final artExportProvider =
+    NotifierProvider<ArtExportController, ArtExportProgress?>(
+        ArtExportController.new);
 
 /// (downloaded, total) for the data screen's idle status line.
 final imagePackStatusProvider = FutureProvider<(int, int)>((ref) async {

@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/legalities.dart';
+import '../../data/images/art_saver.dart';
 import '../../data/repo/card_repository.dart';
 
 class DetailScreen extends ConsumerWidget {
@@ -49,6 +51,243 @@ class DetailScreen extends ConsumerWidget {
   }
 }
 
+/// Saves every printing's full-card PNG — into the picked folder on Android
+/// (asking for one the first time), or a gallery album on iOS. Shows export
+/// progress in place of the icon while this card's export runs; tapping it
+/// cancels.
+class _DownloadArtButton extends ConsumerWidget {
+  final String oracleId;
+
+  const _DownloadArtButton({required this.oracleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(artExportProvider, (prev, next) {
+      if (prev?.running == true &&
+          next != null &&
+          !next.running &&
+          next.oracleId == oracleId) {
+        _showResult(ScaffoldMessenger.of(context), next,
+            ref.read(artFolderProvider.notifier));
+      }
+    });
+
+    final export = ref.watch(artExportProvider);
+    if (export != null && export.running) {
+      final mine = export.oracleId == oracleId;
+      return IconButton(
+        tooltip: mine ? 'Cancel art download' : 'Another download is running',
+        onPressed:
+            mine ? () => ref.read(artExportProvider.notifier).cancel() : null,
+        icon: SizedBox.square(
+          dimension: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            value: mine && export.total > 0
+                ? (export.done + export.failed) / export.total
+                : null,
+          ),
+        ),
+      );
+    }
+    return IconButton(
+      icon: const Icon(Icons.download),
+      tooltip: 'Download all art',
+      onPressed: () => _confirmAndStart(context, ref),
+    );
+  }
+
+  /// The done message: an Open action on success, or a way to pick a new
+  /// folder when the old one vanished mid-run.
+  static void _showResult(ScaffoldMessengerState messenger,
+      ArtExportProgress result, ArtFolderNotifier folders) {
+    if (result.folderLost) {
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Lost access to the save folder; choose it again'),
+        action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
+      ));
+      return;
+    }
+    final failed = result.failed > 0 ? ' (${result.failed} failed)' : '';
+    messenger.showSnackBar(SnackBar(
+      content: Text(
+          'Saved ${result.done} images to ${result.saver.label}$failed'),
+      action: SnackBarAction(
+        label: 'Open',
+        onPressed: () async {
+          if (!await result.saver.open()) {
+            messenger.showSnackBar(const SnackBar(
+                content: Text('No app on this device can open the folder')));
+          }
+        },
+      ),
+    ));
+  }
+
+  /// Android: the remembered folder, or a fresh pick when there is none or
+  /// its grant was revoked. iOS: photo-library access for the album.
+  Future<ArtSaver?> _resolveSaver(
+      WidgetRef ref, ScaffoldMessengerState messenger) async {
+    if (Platform.isAndroid) {
+      final folders = ref.read(artFolderProvider.notifier);
+      var folder = ref.read(artFolderProvider);
+      if (folder == null || !await ArtFolderChannel.hasAccess(folder.uri)) {
+        folder = await folders.pick();
+      }
+      return artSaverFor(folder);
+    }
+    final allowed = await Gal.hasAccess(toAlbum: true) ||
+        await Gal.requestAccess(toAlbum: true);
+    if (!allowed) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Photo access is needed to save card images')));
+      return null;
+    }
+    return artSaverFor(null);
+  }
+
+  Future<void> _confirmAndStart(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(cardRepositoryProvider);
+    if (repo == null) return;
+
+    final saver = await _resolveSaver(ref, messenger);
+    if (saver == null) return;
+
+    final targets = await repo.artTargets(oracleId);
+    final Set<String> existing;
+    try {
+      existing = await saver.existingNames();
+    } on ArtFolderLostException {
+      final folders = ref.read(artFolderProvider.notifier)..clear();
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Lost access to the save folder; choose it again'),
+        action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
+      ));
+      return;
+    }
+    if (!context.mounted) return;
+    if (targets.isEmpty) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('No images available for this card')));
+      return;
+    }
+
+    final folders = ref.read(artFolderProvider.notifier);
+    final chosen = await showDialog<ArtSaver>(
+      context: context,
+      builder: (context) => _ConfirmArtDialog(
+        targets: targets,
+        saver: saver,
+        existing: existing,
+        // Only Android has folders to switch between.
+        onChangeFolder: Platform.isAndroid
+            ? () async {
+                final next = artSaverFor(await folders.pick());
+                if (next == null) return null;
+                try {
+                  return (next, await next.existingNames());
+                } on ArtFolderLostException {
+                  return (next, const <String>{});
+                }
+              }
+            : null,
+      ),
+    );
+    if (chosen != null) {
+      ref.read(artExportProvider.notifier).start(oracleId, targets, chosen);
+    }
+  }
+}
+
+/// Spells out what will be saved (printings vs. images, since double-faced
+/// cards save two per printing) and where, with a way to change the folder
+/// in place. Pops the [ArtSaver] to use, or null on cancel.
+class _ConfirmArtDialog extends StatefulWidget {
+  final List<ArtTarget> targets;
+  final ArtSaver saver;
+  final Set<String> existing;
+  final Future<(ArtSaver, Set<String>)?> Function()? onChangeFolder;
+
+  const _ConfirmArtDialog({
+    required this.targets,
+    required this.saver,
+    required this.existing,
+    required this.onChangeFolder,
+  });
+
+  @override
+  State<_ConfirmArtDialog> createState() => _ConfirmArtDialogState();
+}
+
+class _ConfirmArtDialogState extends State<_ConfirmArtDialog> {
+  late var _saver = widget.saver;
+  late var _existing = widget.existing;
+
+  Future<void> _change() async {
+    final next = await widget.onChangeFolder!();
+    if (next case (final saver, final existing) when mounted) {
+      setState(() {
+        _saver = saver;
+        _existing = existing;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final targets = widget.targets;
+    final backs = targets.where((t) => t.name.endsWith(' (back)')).length;
+    final printings = targets.length - backs;
+    final replacing =
+        targets.where((t) => _existing.contains('${t.name}.png')).length;
+
+    return AlertDialog(
+      title: const Text('Download all art'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$printings ${printings == 1 ? 'printing' : 'printings'}'
+              '${backs > 0 ? ', front and back' : ''}'),
+          const SizedBox(height: 16),
+          Text('Save to folder', style: theme.textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.folder_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_saver.label, style: theme.textTheme.titleSmall),
+              ),
+              if (widget.onChangeFolder != null)
+                TextButton(onPressed: _change, child: const Text('Change')),
+            ],
+          ),
+          if (replacing > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                  '$replacing already in this folder will be replaced.',
+                  style: theme.textTheme.bodySmall),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _saver),
+          child: const Text('Download'),
+        ),
+      ],
+    );
+  }
+}
+
 class _DetailBody extends StatelessWidget {
   final CardDetail card;
   final File? localFront;
@@ -79,9 +318,15 @@ class _DetailBody extends StatelessWidget {
         const SizedBox(height: 8),
         _LegalitiesGrid(packed: card.legalities),
         const Divider(height: 32),
-        Text('Printings (${card.printings.length})',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Printings (${card.printings.length})',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            _DownloadArtButton(oracleId: card.oracleId),
+          ],
+        ),
         _PrintingsList(card: card),
         if (card.rulings.isNotEmpty) ...[
           const Divider(height: 32),

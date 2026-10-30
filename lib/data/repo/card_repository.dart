@@ -73,6 +73,32 @@ class CardDetail {
   });
 }
 
+/// One full-card image to export: PNG URL plus a gallery-friendly name
+/// (no extension — the gallery plugin adds it).
+class ArtTarget {
+  final String url;
+  final String name;
+
+  const ArtTarget(this.url, this.name);
+}
+
+/// Scryfall's CDN keeps every size at the same path under a different
+/// leading segment, so a stored 'normal' URL maps directly to the PNG:
+/// `.../normal/front/a/b/<id>.jpg?123` → `.../png/front/a/b/<id>.png?123`
+String pngUrl(String normalUrl) {
+  final uri = Uri.parse(normalUrl);
+  final segments = [...uri.pathSegments];
+  if (segments.isNotEmpty) segments[0] = 'png';
+  final last = segments.last;
+  segments[segments.length - 1] = last.endsWith('.jpg')
+      ? '${last.substring(0, last.length - 4)}.png'
+      : last;
+  return uri.replace(pathSegments: segments).toString();
+}
+
+String _safeFileName(String s) =>
+    s.replaceAll(' // ', ' - ').replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
+
 const _rarityNames = ['common', 'uncommon', 'rare', 'special', 'mythic', 'bonus'];
 
 class CardRepository {
@@ -220,6 +246,34 @@ class CardRepository {
       for (final r in rows)
         (r.data['oracle_id'] as String, r.data['image_uri_normal'] as String)
     ];
+  }
+
+  /// Full-card PNGs for every printing of one card, newest first, with a
+  /// second entry per print for double-faced backs. The back's URL is only
+  /// in raw_json (prints.image_uri_normal holds the front face).
+  Future<List<ArtTarget>> artTargets(String oracleId) async {
+    final rows = await db.customSelect(
+        'SELECT c.name, p.set_code, p.collector_number, p.lang, '
+        'p.image_uri_normal, '
+        "json_extract(p.raw_json, '\$.card_faces[1].image_uris.normal') "
+        'AS back_normal '
+        'FROM prints p JOIN cards c ON c.oracle_id = p.oracle_id '
+        'WHERE p.oracle_id = ? ORDER BY p.released_at DESC',
+        variables: [Variable(oracleId)]).get();
+    final targets = <ArtTarget>[];
+    for (final r in rows) {
+      final lang = r.data['lang'] as String;
+      final base = _safeFileName('${r.data['name']} - '
+          '${(r.data['set_code'] as String).toUpperCase()} '
+          '${r.data['collector_number']}${lang == 'en' ? '' : ' $lang'}');
+      if (r.data['image_uri_normal'] case final String front) {
+        targets.add(ArtTarget(pngUrl(front), base));
+      }
+      if (r.data['back_normal'] case final String back) {
+        targets.add(ArtTarget(pngUrl(back), '$base (back)'));
+      }
+    }
+    return targets;
   }
 
   /// Distinct type words for the filter sheet's type autocomplete, extracted
