@@ -36,7 +36,9 @@ android {
 
     defaultConfig {
         applicationId = "com.nicksullivan.scryfall_app"
-        minSdk = flutter.minSdkVersion
+        // Play's automatic protection requires API 24+; Flutter 3.32.8's
+        // default (21) would block it.
+        minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
