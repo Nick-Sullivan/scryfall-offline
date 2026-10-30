@@ -31,6 +31,7 @@ void main() {
         FilterSection.rulesText,
         FilterSection.colors,
         FilterSection.identity,
+        FilterSection.show,
         FilterSection.sort,
       },
     );

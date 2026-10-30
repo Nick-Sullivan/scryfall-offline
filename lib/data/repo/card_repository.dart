@@ -6,15 +6,16 @@ import '../../search/compiler/sql_compiler.dart';
 import '../db/database.dart';
 
 /// One search-result tile (oracle grain + the images of the print it shows:
-/// the preferred print, or one matching an `atag:` search).
+/// the preferred print, or one matching an `atag:` search), or with
+/// `unique:prints` one printing.
 class CardSummary {
   final String oracleId;
 
   /// The print whose images these are; null if the card has none.
   final String? printId;
 
-  /// Whether [printId] is the card's preferred print — the one the offline
-  /// image pack stores, so its local file only stands in when this is true.
+  /// Whether [printId] is the card's preferred print — the only one a
+  /// legacy (oracle-keyed) offline image can stand in for.
   final bool isPreferredPrint;
   final String name;
   final String? manaCost;
@@ -70,6 +71,7 @@ class CardDetail {
   final String name;
   final int legalities;
   final Map<String, dynamic> rawJson; // preferred (or requested) print
+  final bool isPreferredPrint; // whether rawJson is the preferred print
   final List<PrintingInfo> printings;
   final List<RulingInfo> rulings;
 
@@ -78,6 +80,7 @@ class CardDetail {
     required this.name,
     required this.legalities,
     required this.rawJson,
+    required this.isPreferredPrint,
     required this.printings,
     required this.rulings,
   });
@@ -150,10 +153,14 @@ class CardRepository {
       final display? => 'COALESCE($display, cards.preferred_print_id)',
       null => 'cards.preferred_print_id',
     };
+    // Prints mode already has one print per row (alias p).
+    final from = query.prints
+        ? query.from
+        : 'cards LEFT JOIN prints p ON p.id = $shown';
     final rows = await db
         .customSelect(
           'SELECT $_summaryColumns '
-          'FROM cards LEFT JOIN prints p ON p.id = $shown '
+          'FROM $from '
           'WHERE ${query.where} ORDER BY ${query.orderBy} '
           'LIMIT $limit OFFSET $offset',
           variables: [
@@ -251,6 +258,7 @@ class CardRepository {
       legalities: card.data['legalities'] as int,
       rawJson:
           jsonDecode(rawRow.data['raw_json'] as String) as Map<String, dynamic>,
+      isPreferredPrint: selected == card.data['preferred_print_id'],
       printings: [
         for (final r in printRows)
           PrintingInfo(
@@ -290,20 +298,39 @@ class CardRepository {
       .into(db.meta)
       .insertOnConflictUpdate(MetaCompanion.insert(key: key, value: value));
 
-  /// (oracle_id, normal-image URL) for every card, for the offline image
-  /// pack. DFC prints carry the front face's image here.
-  Future<List<(String, String)>> imageTargets() async {
+  /// (print id, normal-image URL) for the offline image pack: each card's
+  /// preferred print, or every print when [allPrints]. DFC prints carry the
+  /// front face's image here.
+  Future<List<(String, String)>> imageTargets({required bool allPrints}) async {
     final rows = await db
         .customSelect(
-          'SELECT cards.oracle_id, p.image_uri_normal FROM cards '
-          'JOIN prints p ON p.id = cards.preferred_print_id '
-          'WHERE p.image_uri_normal IS NOT NULL',
+          allPrints
+              ? 'SELECT p.id, p.image_uri_normal FROM prints p '
+                    'WHERE p.image_uri_normal IS NOT NULL'
+              : 'SELECT p.id, p.image_uri_normal FROM cards '
+                    'JOIN prints p ON p.id = cards.preferred_print_id '
+                    'WHERE p.image_uri_normal IS NOT NULL',
         )
         .get();
     return [
       for (final r in rows)
-        (r.data['oracle_id'] as String, r.data['image_uri_normal'] as String),
+        (r.data['id'] as String, r.data['image_uri_normal'] as String),
     ];
+  }
+
+  /// oracle_id → preferred print id, for migrating an oracle-keyed image
+  /// pack to print ids.
+  Future<Map<String, String>> preferredPrintIds() async {
+    final rows = await db
+        .customSelect(
+          'SELECT oracle_id, preferred_print_id FROM cards '
+          'WHERE preferred_print_id IS NOT NULL',
+        )
+        .get();
+    return {
+      for (final r in rows)
+        r.data['oracle_id'] as String: r.data['preferred_print_id'] as String,
+    };
   }
 
   /// Full-card PNGs for every printing of one card, newest first, with a

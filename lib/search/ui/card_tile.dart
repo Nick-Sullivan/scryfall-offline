@@ -48,10 +48,17 @@ class CardTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final local = ref.watch(imageStoreProvider).fileFor(card.oracleId);
+    final local = card.printId == null
+        ? null
+        : ref
+              .watch(imageStoreProvider)
+              .fileFor(
+                card.printId!,
+                legacyOracleId: card.isPreferredPrint ? card.oracleId : null,
+              );
     final url = card.imageNormal ?? card.imageSmall;
     final Widget image;
-    if (card.isPreferredPrint && local.existsSync()) {
+    if (local != null && local.existsSync()) {
       image = Image.file(
         local,
         fit: BoxFit.cover,

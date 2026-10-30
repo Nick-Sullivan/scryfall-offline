@@ -151,21 +151,35 @@ class UpdateScreen extends ConsumerWidget {
   }
 }
 
-class _ImagePackSection extends ConsumerWidget {
+class _ImagePackSection extends ConsumerStatefulWidget {
   const _ImagePackSection();
 
+  @override
+  ConsumerState<_ImagePackSection> createState() => _ImagePackSectionState();
+}
+
+class _ImagePackSectionState extends ConsumerState<_ImagePackSection> {
   // Measured average for Scryfall 'normal' JPGs.
   static const _avgImageKb = 100;
+
+  /// Download every print's image, not just each card's preferred one.
+  bool _allPrints = false;
 
   String _gb(int images) =>
       '${(images * _avgImageKb / 1024 / 1024).toStringAsFixed(1)} GB';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final progress = ref.watch(imagePackProvider);
     final running = progress?.running ?? false;
-    final (downloaded, total) =
-        ref.watch(imagePackStatusProvider).valueOrNull ?? (0, 0);
+    final status = ref.watch(imagePackStatusProvider).valueOrNull;
+    final downloaded = status?.downloaded ?? 0;
+    // (set size, still missing) for the chosen set.
+    final (total, missing) = switch (status) {
+      null => (0, 0),
+      final s when _allPrints => (s.printTotal, s.printMissing),
+      final s => (s.cardTotal, s.cardMissing),
+    };
 
     // Multi-hour download — keep the screen awake while it runs.
     WakelockPlus.toggle(enable: running);
@@ -173,11 +187,25 @@ class _ImagePackSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Offline card images',
-          style: Theme.of(context).textTheme.titleMedium,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Offline card images',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Text(
+              'All printings',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(width: 8),
+            Switch(
+              value: _allPrints,
+              onChanged: running ? null : (v) => setState(() => _allPrints = v),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
         if (running && progress != null) ...[
           LinearProgressIndicator(
             value: progress.total == 0 ? null : progress.done / progress.total,
@@ -195,18 +223,23 @@ class _ImagePackSection extends ConsumerWidget {
           ),
         ] else ...[
           Text(
-            total == 0
+            (status?.cardTotal ?? 0) == 0
                 ? 'No card data yet.'
-                : '$downloaded of $total images downloaded '
-                      '(${_gb(downloaded)} of ~${_gb(total)}).',
+                : missing == 0
+                ? '$total of $total images downloaded '
+                      '(${_gb(downloaded)}).'
+                : '${total - missing} of $total images downloaded '
+                      '(~${_gb(missing)} to go).',
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               FilledButton.tonalIcon(
-                onPressed: total == 0 || downloaded >= total
+                onPressed: missing == 0
                     ? null
-                    : () => ref.read(imagePackProvider.notifier).start(),
+                    : () => ref
+                          .read(imagePackProvider.notifier)
+                          .start(allPrints: _allPrints),
                 icon: const Icon(Icons.image),
                 label: const Text('Download images'),
               ),
@@ -228,7 +261,7 @@ class _ImagePackSection extends ConsumerWidget {
         ],
         const SizedBox(height: 8),
         const Text(
-          'For fully offline browsing. ~3.3 GB; stop and resume any time.',
+          'For fully offline browsing. Stop and resume any time.',
           style: TextStyle(fontSize: 12),
         ),
       ],

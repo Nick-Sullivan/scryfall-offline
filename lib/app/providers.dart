@@ -184,15 +184,40 @@ class ImagePackProgress {
   });
 }
 
-/// Downloads one 'normal' image per card into the [ImageStore]. Re-running
-/// skips files that already exist, so cancel/failures resume naturally.
+const _imagesKeyedByPrintKey = 'imagesKeyedByPrint';
+
+/// One-time upgrade of an image pack from before print keying: renames each
+/// `<oracleId>.jpg` to its preferred print's id. Until it finishes,
+/// [ImageStore.fileFor]'s legacy fallback keeps those images showing. The
+/// done flag is set only once a full pass ran (or there was nothing to
+/// migrate), so an interrupted or skipped run retries on a later launch.
+final imageMigrationProvider = FutureProvider<void>((ref) async {
+  final prefs = ref.watch(prefsProvider);
+  if (prefs.getBool(_imagesKeyedByPrintKey) ?? false) return;
+  final store = ref.watch(imageStoreProvider);
+  if ((await store.storedIds()).isEmpty) {
+    await prefs.setBool(_imagesKeyedByPrintKey, true);
+    return;
+  }
+  // Without card data there's no mapping — wait rather than guess.
+  final repo = ref.watch(cardRepositoryProvider);
+  if (repo == null) return;
+  final mapping = await repo.preferredPrintIds();
+  if (mapping.isEmpty) return;
+  await store.migrate(mapping);
+  await prefs.setBool(_imagesKeyedByPrintKey, true);
+});
+
+/// Downloads 'normal' images into the [ImageStore] — each card's preferred
+/// print, or every print. Re-running skips files that already exist, so
+/// cancel/failures resume naturally (and all prints extends one per card).
 class ImagePackController extends Notifier<ImagePackProgress?> {
   bool _cancel = false;
 
   @override
   ImagePackProgress? build() => null;
 
-  Future<void> start() async {
+  Future<void> start({required bool allPrints}) async {
     if (state?.running == true) return;
     final repo = ref.read(cardRepositoryProvider);
     if (repo == null) return;
@@ -200,11 +225,13 @@ class ImagePackController extends Notifier<ImagePackProgress?> {
     final client = ref.read(httpClientProvider);
     _cancel = false;
 
-    final targets = await repo.imageTargets();
+    await ref.read(imageMigrationProvider.future);
+    final targets = await repo.imageTargets(allPrints: allPrints);
+    final stored = await store.storedIds();
     store.root.createSync(recursive: true);
     final missing = [
       for (final t in targets)
-        if (!store.fileFor(t.$1).existsSync()) t,
+        if (!stored.contains(t.$1)) t,
     ];
     var done = targets.length - missing.length;
     var failed = 0;
@@ -224,8 +251,8 @@ class ImagePackController extends Notifier<ImagePackProgress?> {
     var next = 0;
     Future<void> worker() async {
       while (!_cancel && next < missing.length) {
-        final (oracleId, url) = missing[next++];
-        final ok = await store.download(client, oracleId, url);
+        final (printId, url) = missing[next++];
+        final ok = await store.download(client, printId, url);
         ok ? done++ : failed++;
         if ((done + failed) % 25 == 0) publish(true);
       }
@@ -383,12 +410,36 @@ final artExportProvider =
       ArtExportController.new,
     );
 
-/// (downloaded, total) for the data screen's idle status line.
-final imagePackStatusProvider = FutureProvider<(int, int)>((ref) async {
+/// The data screen's idle image-pack state: images on disk, and how many of
+/// each download set (one per card, all prints) are still missing.
+typedef ImagePackStatus = ({
+  int downloaded,
+  int cardTotal,
+  int cardMissing,
+  int printTotal,
+  int printMissing,
+});
+
+final imagePackStatusProvider = FutureProvider<ImagePackStatus>((ref) async {
   ref.watch(imagePackProvider); // refresh whenever a download run updates
+  await ref.watch(imageMigrationProvider.future);
   final repo = ref.watch(cardRepositoryProvider);
-  final total = repo == null ? 0 : (await repo.imageTargets()).length;
-  return (ref.watch(imageStoreProvider).countSync(), total);
+  final stored = await ref.watch(imageStoreProvider).storedIds();
+  final cards = repo == null
+      ? const <(String, String)>[]
+      : await repo.imageTargets(allPrints: false);
+  final prints = repo == null
+      ? const <(String, String)>[]
+      : await repo.imageTargets(allPrints: true);
+  int missing(List<(String, String)> targets) =>
+      targets.where((t) => !stored.contains(t.$1)).length;
+  return (
+    downloaded: stored.length,
+    cardTotal: cards.length,
+    cardMissing: missing(cards),
+    printTotal: prints.length,
+    printMissing: missing(prints),
+  );
 });
 
 // ------------------------------------------------------------- oracle tags
@@ -698,6 +749,9 @@ class SearchState {
   final bool reachedEnd;
   final QueryError? error;
 
+  /// Results are printings (`unique:prints`), so [total] counts prints.
+  final bool prints;
+
   const SearchState({
     this.query = '',
     this.items = const [],
@@ -706,6 +760,7 @@ class SearchState {
     this.loadingMore = false,
     this.reachedEnd = false,
     this.error,
+    this.prints = false,
   });
 
   bool get hasMore => !reachedEnd && error == null;
@@ -728,6 +783,7 @@ class SearchState {
     loadingMore: loadingMore ?? this.loadingMore,
     reachedEnd: reachedEnd ?? this.reachedEnd,
     error: clearError ? null : (error ?? this.error),
+    prints: prints,
   );
 }
 
@@ -796,6 +852,7 @@ class SearchNotifier extends Notifier<SearchState> {
       total: null,
       loading: false,
       reachedEnd: rows.length < searchPageSize,
+      prints: compiled.prints,
     );
 
     // The count is the slow part; wait out rapid typing so superseded
@@ -871,6 +928,9 @@ class FilterState {
   final String sort; // name, cmc, released, set, edhrec, rarity, power
   final bool sortAscending;
 
+  /// Show printings (`unique:prints`) rather than cards.
+  final bool printings;
+
   const FilterState({
     this.nameText = '',
     this.types = const {},
@@ -889,6 +949,7 @@ class FilterState {
     this.setLabel,
     this.sort = 'name',
     this.sortAscending = true,
+    this.printings = false,
   });
 
   /// Slider upper bounds; the top stop means "no limit".
@@ -915,6 +976,7 @@ class FilterState {
     bool clearSet = false,
     String? sort,
     bool? sortAscending,
+    bool? printings,
   }) => FilterState(
     nameText: nameText ?? this.nameText,
     types: types ?? this.types,
@@ -933,6 +995,7 @@ class FilterState {
     setLabel: clearSet ? null : (setLabel ?? this.setLabel),
     sort: sort ?? this.sort,
     sortAscending: sortAscending ?? this.sortAscending,
+    printings: printings ?? this.printings,
   );
 
   String toSyntax() {
@@ -982,6 +1045,7 @@ class FilterState {
         ..add('order:$sort')
         ..add('direction:${sortAscending ? 'asc' : 'desc'}');
     }
+    if (printings) parts.add('unique:prints');
     return parts.join(' ');
   }
 
@@ -1016,6 +1080,7 @@ class FilterState {
     'setLabel': setLabel,
     'sort': sort,
     'sortAscending': sortAscending,
+    'printings': printings,
   };
 
   static FilterState fromJson(Map<String, dynamic> json) => FilterState(
@@ -1036,6 +1101,7 @@ class FilterState {
     setLabel: json['setLabel'] as String?,
     sort: json['sort'] as String? ?? 'name',
     sortAscending: json['sortAscending'] as bool? ?? true,
+    printings: json['printings'] as bool? ?? false,
   );
 
   /// Missing keys (filters saved before that slider existed) mean the full
@@ -1074,6 +1140,7 @@ class FilterState {
         sort: d.sort,
         sortAscending: d.sortAscending,
       ),
+      FilterSection.show => copyWith(printings: d.printings),
     };
   }
 
@@ -1095,6 +1162,7 @@ class FilterState {
       FilterSection.rarity => rarities.isNotEmpty,
       FilterSection.set => setCode != null,
       FilterSection.sort => sort != d.sort || sortAscending != d.sortAscending,
+      FilterSection.show => printings != d.printings,
     };
   }
 }
@@ -1115,6 +1183,7 @@ enum FilterSection {
   format('Format'),
   rarity('Rarity'),
   set('Set'),
+  show('Cards or printings'),
   sort('Sort');
 
   final String label;

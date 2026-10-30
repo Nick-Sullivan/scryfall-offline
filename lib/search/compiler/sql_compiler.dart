@@ -9,6 +9,10 @@ import '../../data/tags/tag_database.dart' show normalizeTag;
 /// Compiled WHERE clause over the `cards` table (oracle grain, i.e. Scryfall
 /// `unique:cards`). Face- and print-level predicates become correlated
 /// EXISTS subqueries, matching Scryfall's per-face OR semantics.
+///
+/// With `unique:prints` ([prints]) the rows are printings instead: [from]
+/// joins each print (alias `p`) to its card, and print-level predicates test
+/// that print directly.
 class CompiledQuery {
   final String where;
   final List<Object?> params;
@@ -21,19 +25,26 @@ class CompiledQuery {
   final String? displayPrint;
   final List<Object?> displayParams;
 
+  /// One row per printing (`unique:prints`) rather than per card.
+  final bool prints;
+
   const CompiledQuery(
     this.where,
     this.params,
     this.orderBy, {
     this.displayPrint,
     this.displayParams = const [],
+    this.prints = false,
   });
 
-  String selectSql({required int limit, required int offset}) =>
-      'SELECT * FROM cards WHERE $where ORDER BY $orderBy '
-      'LIMIT $limit OFFSET $offset';
+  String get from =>
+      prints ? 'prints p JOIN cards ON cards.oracle_id = p.oracle_id' : 'cards';
 
-  String countSql() => 'SELECT COUNT(*) AS n FROM cards WHERE $where';
+  String selectSql({required int limit, required int offset}) =>
+      'SELECT cards.*${prints ? ', p.id AS print_id' : ''} FROM $from '
+      'WHERE $where ORDER BY $orderBy LIMIT $limit OFFSET $offset';
+
+  String countSql() => 'SELECT COUNT(*) AS n FROM $from WHERE $where';
 }
 
 class SqlCompiler {
@@ -48,6 +59,10 @@ class SqlCompiler {
   final List<String> _displayConds = [];
   final List<Object?> _displayParams = [];
   bool _conjunctive = true;
+
+  /// `unique:prints` — set by a pre-pass in [_run], since the directive may
+  /// follow the predicates it changes.
+  bool _prints = false;
 
   /// Whether the optional tag pack (tags.db, attached as `tagdb`) is
   /// installed; `otag:` predicates throw a directions error without it.
@@ -78,8 +93,12 @@ class SqlCompiler {
   )._run(root);
 
   CompiledQuery _run(QueryNode root) {
+    _prints = _uniqueValue(root)?.toLowerCase() == 'prints';
     var where = _node(root);
     if (where.isEmpty) where = '1=1';
+    if (_prints) {
+      return CompiledQuery(where, _params, _orderBy(), prints: true);
+    }
     if (_displayConds.isEmpty) return CompiledQuery(where, _params, _orderBy());
     // The preferred print wins when it qualifies; otherwise the newest
     // English one, so the tile shows the art that was searched for. Two
@@ -101,6 +120,16 @@ class SqlCompiler {
       displayParams: [..._displayParams, ..._displayParams],
     );
   }
+
+  /// The last `unique:` value anywhere in the query (a directive, so it
+  /// applies globally, as on Scryfall).
+  String? _uniqueValue(QueryNode n) => switch (n) {
+    AndNode(:final children) ||
+    OrNode(:final children) => children.map(_uniqueValue).nonNulls.lastOrNull,
+    NotNode(:final child) => _uniqueValue(child),
+    PredicateNode(field: 'unique', value: StringValue(:final text)) => text,
+    _ => null,
+  };
 
   // ---------------------------------------------------------------- nodes
 
@@ -177,9 +206,9 @@ class SqlCompiler {
         };
         return '';
       case 'unique':
-        if (text().toLowerCase() != 'cards') {
+        if (!const {'cards', 'prints'}.contains(text().toLowerCase())) {
           throw QuerySemanticError(
-            "only unique:cards is supported offline",
+            "only unique:cards and unique:prints are supported offline",
             p.position,
           );
         }
@@ -367,6 +396,12 @@ class SqlCompiler {
           );
         }
         final tag = normalizeTag(text());
+        if (_prints) {
+          _params.addAll([tag, tag]);
+          return 'EXISTS (SELECT 1 FROM print_art pa '
+              'WHERE pa.print_id = p.id AND pa.illustration_id IN '
+              '(${_artIllustrations()}))';
+        }
         if (_conjunctive) {
           _displayParams.addAll([tag, tag]);
           _displayConds.add(
@@ -403,8 +438,11 @@ class SqlCompiler {
   String _facesExists(String cond) =>
       'EXISTS (SELECT 1 FROM faces f WHERE f.oracle_id = cards.oracle_id AND ($cond))';
 
-  String _printsExists(String cond) =>
-      'EXISTS (SELECT 1 FROM prints p WHERE p.oracle_id = cards.oracle_id AND ($cond))';
+  /// A print-level condition over alias `p`: does some print match, or, in
+  /// prints mode, does this row's print.
+  String _printsExists(String cond) => _prints
+      ? '($cond)'
+      : 'EXISTS (SELECT 1 FROM prints p WHERE p.oracle_id = cards.oracle_id AND ($cond))';
 
   String _printsLike(String column, String text) {
     _params.add(_likePattern(text));
@@ -783,6 +821,7 @@ class SqlCompiler {
   }
 
   String _orderBy() {
+    if (_prints) return _printsOrderBy();
     final asc = _orderAsc;
     String dir(bool defaultAsc) => (asc ?? defaultAsc) ? 'ASC' : 'DESC';
     return switch (_orderField ?? 'name') {
@@ -814,5 +853,34 @@ class SqlCompiler {
         "order:$other is not supported (yet)",
       ),
     };
+  }
+
+  /// [_orderBy] for prints mode: print-level sorts use the row's own print,
+  /// and a card's printings stay together, newest first (p.id keeps paging
+  /// stable).
+  String _printsOrderBy() {
+    final asc = _orderAsc;
+    String dir(bool defaultAsc) => (asc ?? defaultAsc) ? 'ASC' : 'DESC';
+    const name = 'cards.name COLLATE NOCASE ASC';
+    final key = switch (_orderField ?? 'name') {
+      'name' => 'cards.name COLLATE NOCASE ${dir(true)}',
+      'cmc' || 'mv' => 'cards.cmc ${dir(true)}, $name',
+      'released' || 'date' => 'p.released_at ${dir(false)}, $name',
+      'edhrec' =>
+        'cards.edhrec_rank IS NULL, cards.edhrec_rank ${dir(true)}, $name',
+      'rarity' => 'p.rarity ${dir(false)}, $name',
+      'set' || 'edition' =>
+        'p.released_at ${dir(false)}, p.set_code ${dir(false)}, $name',
+      'power' =>
+        '(SELECT MAX(f.pow_num) FROM faces f WHERE f.oracle_id = cards.oracle_id) '
+            '${dir(false)}, $name',
+      'toughness' =>
+        '(SELECT MAX(f.tou_num) FROM faces f WHERE f.oracle_id = cards.oracle_id) '
+            '${dir(false)}, $name',
+      final other => throw QuerySemanticError(
+        "order:$other is not supported (yet)",
+      ),
+    };
+    return '$key, p.released_at DESC, p.id';
   }
 }

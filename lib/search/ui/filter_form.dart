@@ -385,6 +385,20 @@ class _FilterFormState extends ConsumerState<FilterForm> {
                 ),
           ),
         ],
+        if (show(FilterSection.show)) ...[
+          const Divider(height: 32),
+          _label('Show'),
+          SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: false, label: Text('Cards')),
+              ButtonSegment(value: true, label: Text('Printings')),
+            ],
+            selected: {_draft.printings},
+            onSelectionChanged: (s) =>
+                _apply(_draft.copyWith(printings: s.first)),
+          ),
+        ],
         if (show(FilterSection.sort)) ...[
           const Divider(height: 32),
           _label('Sort by'),

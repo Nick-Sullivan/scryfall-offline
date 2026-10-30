@@ -113,6 +113,35 @@ void main() {
     test('unknown oracle id returns null', () async {
       expect(await repo.detail('not-a-real-oracle-id'), isNull);
     });
+
+    test('isPreferredPrint flags the preferred printing only', () async {
+      final bolt = await db
+          .customSelect(
+            "SELECT oracle_id, preferred_print_id FROM cards "
+            "WHERE name = 'Lightning Bolt'",
+          )
+          .getSingle();
+      final oracleId = bolt.data['oracle_id'] as String;
+      final preferred = await repo.detail(oracleId);
+      expect(preferred!.isPreferredPrint, isTrue);
+      final other = preferred.printings.firstWhere(
+        (p) => p.id != bolt.data['preferred_print_id'],
+      );
+      expect(
+        (await repo.detail(oracleId, printId: other.id))!.isPreferredPrint,
+        isFalse,
+      );
+    });
+
+    test('imageTargets: preferred prints, or every print', () async {
+      final perCard = await repo.imageTargets(allPrints: false);
+      final all = await repo.imageTargets(allPrints: true);
+      expect(perCard, hasLength(16));
+      expect(all, hasLength(17)); // Lightning Bolt twice
+      final preferred = await repo.preferredPrintIds();
+      expect(perCard.map((t) => t.$1).toSet(), preferred.values.toSet());
+      expect(all.map((t) => t.$1).toSet().containsAll(preferred.values), true);
+    });
   });
 
   group('CardRepository.summariesByIds', () {

@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/legalities.dart';
 import '../../data/images/art_saver.dart';
+import '../../data/images/image_store.dart';
 import '../../data/repo/card_repository.dart';
 
 class DetailScreen extends ConsumerWidget {
@@ -22,12 +23,7 @@ class DetailScreen extends ConsumerWidget {
     final detail = ref.watch(
       cardDetailProvider((oracleId: oracleId, printId: printId)),
     );
-    // The offline pack stores the preferred print's front image; use it when
-    // that's the print being shown.
-    final local = printId == null
-        ? ref.watch(imageStoreProvider).fileFor(oracleId)
-        : null;
-    final localFront = (local?.existsSync() ?? false) ? local : null;
+    final store = ref.watch(imageStoreProvider);
     final saved = ref.watch(savedCardsProvider).contains(oracleId);
     return Scaffold(
       appBar: AppBar(
@@ -46,9 +42,20 @@ class DetailScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Failed to load card: $e')),
         data: (card) => card == null
             ? const Center(child: Text('Card not found.'))
-            : _DetailBody(card: card, localFront: localFront),
+            : _DetailBody(card: card, localFront: _localFront(store, card)),
       ),
     );
+  }
+
+  /// The offline pack's front image of the shown print, if downloaded.
+  static File? _localFront(ImageStore store, CardDetail card) {
+    final printId = card.rawJson['id'] as String?;
+    if (printId == null) return null;
+    final file = store.fileFor(
+      printId,
+      legacyOracleId: card.isPreferredPrint ? card.oracleId : null,
+    );
+    return file.existsSync() ? file : null;
   }
 }
 

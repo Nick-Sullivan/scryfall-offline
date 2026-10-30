@@ -129,8 +129,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   // total is null until the count query lands; results are
                   // already showing, so just say "cards" until it arrives.
                   search.total == null
-                      ? 'cards'
-                      : '${search.total} card${search.total == 1 ? '' : 's'}',
+                      ? (search.prints ? 'printings' : 'cards')
+                      : '${search.total} ${search.prints ? 'printing' : 'card'}'
+                            '${search.total == 1 ? '' : 's'}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),

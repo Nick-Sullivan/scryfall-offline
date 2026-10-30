@@ -189,6 +189,62 @@ void main() {
     });
   });
 
+  group('unique:prints', () {
+    Future<List<String?>> printIds(String query) async => [
+      for (final r in await rows(query)) r.printId,
+    ];
+
+    test('one row per printing, newest first', () async {
+      final bolts = await rows('!"Lightning Bolt" unique:prints');
+      expect(bolts.map((r) => r.name), ['Lightning Bolt', 'Lightning Bolt']);
+      expect(bolts.last.printId, _boltM10);
+      expect(bolts.map((r) => r.isPreferredPrint), [true, false]);
+      expect(await search('!"Lightning Bolt" unique:cards'), [
+        'Lightning Bolt',
+      ]);
+    });
+
+    test('print predicates filter each printing', () async {
+      expect(await printIds('!"Lightning Bolt" s:m10 unique:prints'), [
+        _boltM10,
+      ]);
+      // The directive applies wherever it appears.
+      expect(await printIds('unique:prints s:m10'), [_boltM10]);
+      final notM10 = await printIds('!"Lightning Bolt" -s:m10 unique:prints');
+      expect(notM10, hasLength(1));
+      expect(notM10.single, isNot(_boltM10));
+    });
+
+    test('atag matches the tagged printing only', () async {
+      expect(await printIds('atag:lightning unique:prints'), [_boltM10]);
+      expect(compile('atag:lightning unique:prints').displayPrint, isNull);
+    });
+
+    test('count is of printings', () async {
+      // Bolt is the only instant printed twice in the fixture.
+      expect(
+        await repo.count(compile('t:instant unique:prints')),
+        await repo.count(compile('t:instant')) + 1,
+      );
+    });
+
+    test('order:set sorts by each printing', () async {
+      final bySet = await rows('order:set direction:asc unique:prints');
+      expect(bySet.first.name, 'Black Lotus');
+      // The 2009 M10 Bolt sorts among the older sets, the 2022 one last.
+      final bolts = [
+        for (final (i, r) in bySet.indexed)
+          if (r.name == 'Lightning Bolt') i,
+      ];
+      expect(bolts.last, bySet.length - 1);
+      expect(bolts.first, lessThan(bySet.length - 1));
+    });
+
+    test('only cards and prints are supported', () {
+      expect(() => compile('unique:art'), throwsA(isA<QuerySemanticError>()));
+    });
+  });
+
   group('CardRepository art tags', () {
     test('artTagsForPrint lists direct tags on every face', () async {
       expect(await repo.artTagsForPrint(_boltM10), [

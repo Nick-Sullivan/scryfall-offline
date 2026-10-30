@@ -18,6 +18,15 @@ flutter run -d emulator-5554 --debug     # debug build enables run-as
 adb lives at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (not on PATH).
 Package id: `com.nicksullivan.scryfall_app`.
 
+An emulator is usually already running. Check `adb devices` via that full
+path before launching one, and never conclude "no emulator" from a bare `adb`
+or from `flutter emulators`.
+
+Install a build with `flutter build apk --debug` then
+`adb install -r build/app/outputs/flutter-apk/app-debug.apk`; `-r` keeps app
+data, so this is also how to test upgrading from an older build (build the old
+commit in a `git worktree`, install it, then install the new APK over it).
+
 ## Seed a small database (skip the ~250MB onboarding sync)
 
 Build a 16-card DB from test fixtures with a throwaway env-guarded test
@@ -60,9 +69,20 @@ Delete the throwaway seed test afterwards.
 - Git Bash mangles `/data/...` into `C:/Program Files/Git/data/...`;
   `export MSYS_NO_PATHCONV=1` first.
 - The emulator may hold real test data from earlier sessions — check
-  `run-as <pkg> ls files/db` before overwriting, and back files up to
-  `/data/local/tmp` first. The user also uses it between runs, so re-check
-  prefs/state rather than assuming what you left.
+  `run-as <pkg> ls files/db` before overwriting, and back files up first. The
+  user also uses it between runs, so re-check prefs/state rather than assuming
+  what you left. `run-as` can't write to `/data/local/tmp` (SELinux), so back
+  up inside the sandbox (`run-as <pkg> cp -r files/images files/x_backup`) or
+  pull to the host with `run-as <pkg> cat … > local`.
+- Driving the UI changes the user's saved settings: a stray tap or a swipe
+  that registers as a tap on Settings (especially the expanded Default filter)
+  rewrites prefs. Before driving, save `FlutterSharedPreferences.xml` to the
+  host; afterwards diff it and restore anything you changed. Swipe on labels,
+  away from switches and chips.
+- Before tapping, confirm the app is in front:
+  `adb shell dumpsys activity activities | grep -m1 topResumedActivity`.
+  A system picker (e.g. the art-folder chooser) can be on top and swallow taps;
+  back out of it without choosing anything.
 - `adb shell input text` goes through the device shell: `>`, `<`, `|`, `(`,
   quotes etc. get interpreted (`pow>=2` creates a file named `=2`). Type
   queries without them, or drive the filter panel instead.

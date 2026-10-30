@@ -1,6 +1,26 @@
 # scryfall_app
 
-## UI copy
+## UI design
+Design a control before writing it. Words, placement and appearance are the
+feature, not polish.
+- **Name it with the app's existing words.** Grep the UI strings before
+  introducing a term. The app says "printings" (card detail, Card data), never
+  "prints"; `unique:prints` is Scryfall query syntax, not UI copy.
+- **Name the setting after what's being chosen,** never after one of its
+  values ("Show: Cards | Printings", not "All prints").
+- **Pick the control by meaning.** A switch turns one thing on or off. A
+  choice between named alternatives is a `SegmentedButton`. Several of one
+  kind are chips.
+- **Place it deliberately.** A distinct setting gets its own section, next to
+  related ones and in an order that reads naturally (e.g. "Show" before "Sort
+  by", because it decides what gets sorted). Never fold it into an unrelated
+  section. Filter-panel sections also need a `FilterSection` entry so Settings
+  can hide them.
+- **Look at it before calling it done.** Screenshot it on the emulator, check
+  the wording, alignment and visual weight against neighbouring sections, and
+  show the user the screenshot.
+
+### Copy
 Show, don't tell. No subtitles, helper lines or descriptions that restate what
 the UI already makes evident. Default to a bare title/control; add text only
 when the user can't otherwise know something they need. When asked to trim

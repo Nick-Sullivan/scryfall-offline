@@ -127,6 +127,14 @@ void main() {
       expect(const FilterState(setCode: 'neo').toSyntax(), 's:neo');
     });
 
+    test('showing printings emits unique:prints', () {
+      expect(const FilterState(printings: true).toSyntax(), 'unique:prints');
+      expect(
+        const FilterState(sort: 'set', printings: true).toSyntax(),
+        'order:set direction:asc unique:prints',
+      );
+    });
+
     test('art tags emit atag:, separate from oracle tags', () {
       expect(
         const FilterState(
@@ -166,6 +174,7 @@ void main() {
       FilterSection.rarity: const FilterState(rarities: {'rare'}),
       FilterSection.set: const FilterState(setCode: 'neo', setLabel: 'NEO'),
       FilterSection.sort: const FilterState(sort: 'cmc', sortAscending: false),
+      FilterSection.show: const FilterState(printings: true),
     };
 
     test('defaults are inactive everywhere', () {
@@ -227,6 +236,7 @@ void main() {
         setLabel: 'Kamigawa: Neon Dynasty (neo)',
         sort: 'edhrec',
         sortAscending: false,
+        printings: true,
       );
       // Through a real encode/decode, not just the maps — otags arrives as
       // Map<String, dynamic> from jsonDecode and has to survive the cast.
@@ -251,6 +261,12 @@ void main() {
       expect(old.pow, const RangeValues(0, FilterState.statMax));
       expect(old.tou, const RangeValues(0, FilterState.statMax));
       expect(old.toSyntax(), 'mv>=1');
+    });
+
+    test('a filter saved before cards/printings existed shows cards', () {
+      final old = FilterState.fromJson(const {'sort': 'cmc'});
+      expect(old.printings, isFalse);
+      expect(old.toSyntax(), 'order:cmc direction:asc');
     });
   });
 }

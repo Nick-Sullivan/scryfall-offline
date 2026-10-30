@@ -38,6 +38,8 @@ class ScryfallApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Upgrade an old oracle-keyed image pack in the background.
+    ref.listen(imageMigrationProvider, (_, __) {});
     return MaterialApp.router(
       title: 'Offline MTG Card Search',
       theme: ThemeData(
