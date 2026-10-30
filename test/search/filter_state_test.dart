@@ -113,6 +113,73 @@ void main() {
     test('set code', () {
       expect(const FilterState(setCode: 'neo').toSyntax(), 's:neo');
     });
+
+    test('art tags emit atag:, separate from oracle tags', () {
+      expect(
+          const FilterState(
+              otags: {'removal': 'removal'},
+              atags: {'dragon': 'dragon', 'night-sky': 'night sky'}).toSyntax(),
+          'otag:removal atag:dragon atag:night-sky');
+    });
+
+    test('power and toughness ranges; the top stop is open-ended', () {
+      expect(const FilterState(pow: RangeValues(3, 5)).toSyntax(),
+          'pow>=3 pow<=5');
+      expect(const FilterState(tou: RangeValues(2, 10)).toSyntax(), 'tou>=2');
+      expect(const FilterState(tou: RangeValues(0, 4)).toSyntax(), 'tou<=4');
+      // Full ranges add nothing, so non-creatures aren't filtered out.
+      expect(const FilterState().toSyntax(), '');
+    });
+  });
+
+  group('FilterState sections', () {
+    // One filter per section, each setting only that section.
+    final cases = {
+      FilterSection.name: const FilterState(nameText: 'bolt'),
+      FilterSection.types: const FilterState(types: {'Elf'}),
+      FilterSection.rulesText: const FilterState(oracleText: 'draw'),
+      FilterSection.oracleTags: const FilterState(otags: {'ramp': 'ramp'}),
+      FilterSection.artTags: const FilterState(atags: {'cat': 'cat'}),
+      FilterSection.colors: const FilterState(colors: {'R'}, colorMode: '='),
+      FilterSection.identity: const FilterState(identity: {'G'}),
+      FilterSection.manaValue: const FilterState(mv: RangeValues(1, 16)),
+      FilterSection.power: const FilterState(pow: RangeValues(0, 4)),
+      FilterSection.toughness: const FilterState(tou: RangeValues(1, 10)),
+      FilterSection.format: const FilterState(format: 'modern'),
+      FilterSection.rarity: const FilterState(rarities: {'rare'}),
+      FilterSection.set: const FilterState(setCode: 'neo', setLabel: 'NEO'),
+      FilterSection.sort: const FilterState(sort: 'cmc', sortAscending: false),
+    };
+
+    test('defaults are inactive everywhere', () {
+      for (final s in FilterSection.values) {
+        expect(const FilterState().isActive(s), isFalse, reason: s.name);
+      }
+    });
+
+    test('each section reports its own value', () {
+      expect(cases.keys.toSet(), FilterSection.values.toSet());
+      for (final MapEntry(key: section, value: state) in cases.entries) {
+        for (final other in FilterSection.values) {
+          expect(state.isActive(other), other == section,
+              reason: '${section.name} state, checking ${other.name}');
+        }
+      }
+    });
+
+    test('cleared resets that section and leaves the rest', () {
+      for (final MapEntry(key: section, value: state) in cases.entries) {
+        expect(state.cleared(section).toSyntax(), '', reason: section.name);
+        // Another section's value survives clearing this one.
+        final other = section == FilterSection.format
+            ? FilterSection.rarity
+            : FilterSection.format;
+        final combined =
+            state.copyWith(format: 'modern', rarities: const {'rare'});
+        expect(combined.cleared(section).isActive(other), isTrue,
+            reason: section.name);
+      }
+    });
   });
 
   group('FilterState json', () {
@@ -122,10 +189,13 @@ void main() {
         types: {'Legendary', 'Creature'},
         oracleText: 'draw a card',
         otags: {'removal': 'Removal'},
+        atags: {'dragon': 'Dragon'},
         colors: {'W', 'U'},
         colorMode: '<=',
         identity: {'B'},
         mv: RangeValues(2, 7),
+        pow: RangeValues(1, 4),
+        tou: RangeValues(2, 10),
         format: 'commander',
         rarities: {'rare', 'mythic'},
         setCode: 'neo',
@@ -140,11 +210,22 @@ void main() {
       expect(restored.toSyntax(), original.toSyntax());
       expect(restored.types, original.types);
       expect(restored.otags, original.otags);
+      expect(restored.atags, original.atags);
+      expect(restored.pow, original.pow);
+      expect(restored.tou, original.tou);
       expect(restored.setLabel, original.setLabel);
     });
 
     test('missing fields fall back to defaults', () {
       expect(FilterState.fromJson(const {}).toSyntax(), '');
+    });
+
+    test('a filter saved before power/toughness existed loads full ranges',
+        () {
+      final old = FilterState.fromJson(const {'mvStart': 1, 'mvEnd': 16});
+      expect(old.pow, const RangeValues(0, FilterState.statMax));
+      expect(old.tou, const RangeValues(0, FilterState.statMax));
+      expect(old.toSyntax(), 'mv>=1');
     });
   });
 }

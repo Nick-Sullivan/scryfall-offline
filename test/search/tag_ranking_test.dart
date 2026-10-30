@@ -14,9 +14,9 @@ void main() {
     ('mana-rock', 'mana rock'),
   ];
 
-  group('rankOracleTags', () {
+  group('rankTags', () {
     test('exact match leads, then prefixes, then substrings', () {
-      final hits = rankOracleTags(tags, 'removal', const {});
+      final hits = rankTags(tags, 'removal', const {});
       expect(hits.map((t) => t.$1), [
         'removal',
         'removal-aura',
@@ -27,18 +27,18 @@ void main() {
     });
 
     test('partial query still ranks prefixes above buried matches', () {
-      final hits = rankOracleTags(tags, 'remov', const {});
+      final hits = rankTags(tags, 'remov', const {});
       expect(hits.first.$1, 'removal');
       expect(hits[1].$1, 'removal-aura');
     });
 
     test('matches a spaced label as well as a slug', () {
-      expect(rankOracleTags(tags, 'mana r', const {}).single.$1, 'mana-rock');
-      expect(rankOracleTags(tags, 'mana-r', const {}).single.$1, 'mana-rock');
+      expect(rankTags(tags, 'mana r', const {}).single.$1, 'mana-rock');
+      expect(rankTags(tags, 'mana-r', const {}).single.$1, 'mana-rock');
     });
 
     test('already-selected tags are excluded', () {
-      final hits = rankOracleTags(tags, 'removal', const {'removal'});
+      final hits = rankTags(tags, 'removal', const {'removal'});
       expect(hits.map((t) => t.$1), isNot(contains('removal')));
       expect(hits.first.$1, 'removal-aura');
     });
@@ -47,11 +47,11 @@ void main() {
       final many = [
         for (var i = 0; i < 50; i++) ('tag-$i', 'tag $i'),
       ];
-      expect(rankOracleTags(many, 'tag', const {}).length, 20);
+      expect(rankTags(many, 'tag', const {}).length, 20);
     });
 
     test('no matches yields an empty list', () {
-      expect(rankOracleTags(tags, 'zzz', const {}), isEmpty);
+      expect(rankTags(tags, 'zzz', const {}), isEmpty);
     });
   });
 }

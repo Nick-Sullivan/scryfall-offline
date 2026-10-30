@@ -62,6 +62,7 @@ class DatabaseManager extends Notifier<AppDatabase?> {
     await current?.close();
     files.swapStagingIntoLive();
     state = AppDatabase.background(files.live, tagPack: files.tags);
+    ref.read(hasCardDataProvider.notifier).set(true);
   }
 
   /// Closes the live DB, runs [whileClosed], and reopens. Used by the tag
@@ -87,11 +88,26 @@ class DatabaseManager extends Notifier<AppDatabase?> {
     state = null;
     await current?.close();
     files.deleteAll();
+    ref.read(hasCardDataProvider.notifier).set(false);
   }
 }
 
 final databaseProvider =
     NotifierProvider<DatabaseManager, AppDatabase?>(DatabaseManager.new);
+
+/// Whether card data is installed, for the router's onboarding redirect.
+/// Unlike [databaseProvider], it stays true while the DB is briefly closed
+/// for an update swap or tag-pack change, so those don't bounce the user
+/// through onboarding to the search page.
+class HasCardDataNotifier extends Notifier<bool> {
+  @override
+  bool build() => ref.watch(dbFilesProvider).hasLiveDatabase;
+
+  void set(bool value) => state = value;
+}
+
+final hasCardDataProvider =
+    NotifierProvider<HasCardDataNotifier, bool>(HasCardDataNotifier.new);
 
 final cardRepositoryProvider = Provider<CardRepository?>((ref) {
   final db = ref.watch(databaseProvider);
@@ -376,12 +392,13 @@ class TagPackProgress {
   });
 }
 
-/// Downloads the `oracle_tags` bulk file and installs it as tags.db via a
-/// staging swap. Only runs when the user taps it — never automatically; a
-/// re-tap is the refresh path.
+/// Downloads the `oracle_tags` and `art_tags` bulk files and installs them
+/// together as tags.db via a staging swap. Only runs when the user taps it —
+/// never automatically; a re-tap is the refresh path.
 class TagPackController extends Notifier<TagPackProgress?> {
   /// Sanity floor: a truncated download or format break must never replace
-  /// a good pack (the real file has thousands of tags, ~300k taggings).
+  /// a good pack (the real files have thousands of tags and hundreds of
+  /// thousands of taggings each).
   static const _minTags = 100;
   static const _minTaggings = 10000;
 
@@ -397,24 +414,30 @@ class TagPackController extends Notifier<TagPackProgress?> {
         state = TagPackProgress(label: label, fraction: fraction, running: true);
 
     final download = File(p.join(files.syncDir.path, 'oracle_tags.jsonl.gz'));
+    final artDownload = File(p.join(files.syncDir.path, 'art_tags.jsonl.gz'));
     try {
       publish('Checking…');
       final api = BulkApi(client, appVersion: appVersion);
-      final info = await api.fetchOracleTagsInfo();
+      final info = await api.fetchTagsInfo();
 
       files.syncDir.createSync(recursive: true);
-      var lastEmit = 0;
-      await downloadFile(client, info.downloadUri, download,
-          headers: scryfallHeaders(appVersion), onProgress: (recv, total) {
-        if (recv - lastEmit > 256 * 1024 || recv == total) {
-          lastEmit = recv;
-          publish('Downloading tag data…',
-              fraction: total == null ? null : recv / total);
-        }
-      });
+      Future<void> fetch(BulkFileInfo file, File dest, String label) {
+        var lastEmit = 0;
+        return downloadFile(client, file.downloadUri, dest,
+            headers: scryfallHeaders(appVersion), onProgress: (recv, total) {
+          if (recv - lastEmit > 256 * 1024 || recv == total) {
+            lastEmit = recv;
+            publish(label, fraction: total == null ? null : recv / total);
+          }
+        });
+      }
+
+      await fetch(info.oracle, download, 'Downloading oracle tags…');
+      await fetch(info.art, artDownload, 'Downloading art tags…');
 
       publish('Importing tags…');
-      final done = Completer<({int tags, int taggings})>();
+      final done = Completer<
+          ({int tags, int taggings, int artTags, int artTaggings})>();
       final port = ReceivePort();
       port.listen((msg) {
         final map = msg as Map;
@@ -425,6 +448,8 @@ class TagPackController extends Notifier<TagPackProgress?> {
             done.complete((
               tags: map['tags'] as int,
               taggings: map['taggings'] as int,
+              artTags: map['artTags'] as int,
+              artTaggings: map['artTaggings'] as int,
             ));
           case 'error':
             done.completeError(StateError(map['message'] as String));
@@ -437,14 +462,20 @@ class TagPackController extends Notifier<TagPackProgress?> {
             progressPort: port.sendPort,
             stagingDbPath: files.tagsStaging.path,
             tagsPath: download.path,
-            tagsGzip: info.isGzip,
-            bulkUpdatedAt: info.updatedAt,
+            tagsGzip: info.oracle.isGzip,
+            artTagsPath: artDownload.path,
+            artTagsGzip: info.art.isGzip,
+            bulkUpdatedAt: info.oracle.updatedAt,
           ),
           errorsAreFatal: true,
         );
         final stats = await done.future;
         if (stats.tags < _minTags || stats.taggings < _minTaggings) {
           throw StateError('ingest produced only ${stats.tags} tags — '
+              'refusing to install');
+        }
+        if (stats.artTags < _minTags || stats.artTaggings < _minTaggings) {
+          throw StateError('ingest produced only ${stats.artTags} art tags — '
               'refusing to install');
         }
       } finally {
@@ -460,7 +491,9 @@ class TagPackController extends Notifier<TagPackProgress?> {
       if (files.tagsStaging.existsSync()) files.tagsStaging.deleteSync();
       state = TagPackProgress(label: '', running: false, error: e.toString());
     } finally {
-      if (download.existsSync()) download.deleteSync();
+      for (final f in [download, artDownload]) {
+        if (f.existsSync()) f.deleteSync();
+      }
       ref.invalidate(tagPackStatusProvider);
     }
   }
@@ -479,9 +512,16 @@ class TagPackController extends Notifier<TagPackProgress?> {
 final tagPackProvider = NotifierProvider<TagPackController, TagPackProgress?>(
     TagPackController.new);
 
+typedef TagPackStatus = ({
+  int tags,
+  int taggings,
+  /// Null for a pack installed before art tags existed (no art tables).
+  int? artTags,
+  String? fetchedAt,
+});
+
 /// Installed-pack summary for the data screen; null = not installed.
-final tagPackStatusProvider =
-    FutureProvider<({int tags, int taggings, String? fetchedAt})?>((ref) async {
+final tagPackStatusProvider = FutureProvider<TagPackStatus?>((ref) async {
   final db = ref.watch(databaseProvider);
   final files = ref.watch(dbFilesProvider);
   if (db == null || !files.tags.existsSync()) return null;
@@ -489,8 +529,21 @@ final tagPackStatusProvider =
   return (
     tags: int.tryParse(meta[TagPackMetaKeys.tagCount] ?? '') ?? 0,
     taggings: int.tryParse(meta[TagPackMetaKeys.taggingCount] ?? '') ?? 0,
+    artTags: int.tryParse(meta[TagPackMetaKeys.artTagCount] ?? ''),
     fetchedAt: meta[TagPackMetaKeys.fetchedAt],
   );
+});
+
+/// Whether `atag:` can run: the installed tag pack has art tags. Older
+/// oracle-only packs lack the art tables entirely.
+final artTagsInstalledProvider = FutureProvider<bool>((ref) async =>
+    (await ref.watch(tagPackStatusProvider.future))?.artTags != null);
+
+/// Whether the card database records illustrations per print (schema v2+).
+/// Databases built before that need a card-data update for `atag:`.
+final artIndexedProvider = FutureProvider<bool>((ref) async {
+  final meta = await ref.watch(metaProvider.future);
+  return (int.tryParse(meta[MetaKeys.schemaVersion] ?? '') ?? 0) >= 2;
 });
 
 /// Prefs keys for the update check. The /sets card total is the update
@@ -555,6 +608,10 @@ Future<bool?> _setsUpdateAvailable(Ref ref, {required bool force}) async {
 final updateCheckProvider = FutureProvider.autoDispose<bool?>((ref) async {
   final meta = await ref.watch(metaProvider.future);
   if (meta.isEmpty) return true; // no database yet
+  // Built by an older app: a re-download fills in what the new schema adds
+  // (e.g. print_art for art tags).
+  final built = int.tryParse(meta[MetaKeys.schemaVersion] ?? '') ?? 0;
+  if (built < schemaVersionValue) return true;
   return _setsUpdateAvailable(ref, force: true);
 });
 
@@ -653,10 +710,20 @@ class SearchNotifier extends Notifier<SearchState> {
 
   /// An empty query means "browse everything" — compiled by hand since the
   /// parser has no empty production.
-  CompiledQuery _compile(String query) => query.trim().isEmpty
-      ? const CompiledQuery('1=1', [], 'cards.name COLLATE NOCASE ASC')
-      : SqlCompiler.compile(ScryfallQueryParser.parse(query),
-          tagsInstalled: ref.read(dbFilesProvider).tags.existsSync());
+  Future<CompiledQuery> _compile(String query) async {
+    if (query.trim().isEmpty) {
+      return const CompiledQuery('1=1', [], 'cards.name COLLATE NOCASE ASC');
+    }
+    final root = ScryfallQueryParser.parse(query);
+    // Both flags only gate atag:'s directions errors; an unreadable pack or
+    // meta table reads as "not available".
+    Future<bool> flag(FutureProvider<bool> p) =>
+        ref.read(p.future).catchError((_) => false);
+    return SqlCompiler.compile(root,
+        tagsInstalled: ref.read(dbFilesProvider).tags.existsSync(),
+        artTagsInstalled: await flag(artTagsInstalledProvider),
+        artIndexed: await flag(artIndexedProvider));
+  }
 
   Future<void> setQuery(String query) async {
     final gen = ++_generation;
@@ -665,13 +732,15 @@ class SearchNotifier extends Notifier<SearchState> {
 
     final CompiledQuery compiled;
     try {
-      compiled = _compile(query);
+      compiled = await _compile(query);
     } on QueryError catch (e) {
+      if (gen != _generation) return;
       // Mid-typing errors (a half-typed field or unbalanced paren) shouldn't
       // wipe the visible results — keep them and just surface the message.
       state = state.copyWith(query: query, error: e, loading: false);
       return;
     }
+    if (gen != _generation) return;
 
     state = state.copyWith(query: query, loading: true, clearError: true);
 
@@ -704,7 +773,7 @@ class SearchNotifier extends Notifier<SearchState> {
     final gen = _generation;
     state = s.copyWith(loadingMore: true);
     try {
-      final compiled = _compile(s.query);
+      final compiled = await _compile(s.query);
       final rows = await repo.searchRows(compiled,
           limit: searchPageSize, offset: s.items.length);
       if (gen != _generation) return;
@@ -737,10 +806,18 @@ class FilterState {
   /// the label rides along so chips stay readable even if the tag pack is
   /// deleted out from under a saved filter.
   final Map<String, String> otags;
+
+  /// Selected art tags, slug → label, same as [otags] but for `atag:`.
+  final Map<String, String> atags;
   final Set<String> colors;
   final String colorMode; // ':', '=', '<='
   final Set<String> identity;
   final RangeValues mv;
+
+  /// Power and toughness ranges; [statMax] as the upper end means "no
+  /// limit" (a handful of cards go past it).
+  final RangeValues pow;
+  final RangeValues tou;
   final String? format;
   final Set<String> rarities;
   final String? setCode;
@@ -753,10 +830,13 @@ class FilterState {
     this.types = const {},
     this.oracleText = '',
     this.otags = const {},
+    this.atags = const {},
     this.colors = const {},
     this.colorMode = ':',
     this.identity = const {},
-    this.mv = const RangeValues(0, 16),
+    this.mv = const RangeValues(0, mvMax),
+    this.pow = const RangeValues(0, statMax),
+    this.tou = const RangeValues(0, statMax),
     this.format,
     this.rarities = const {},
     this.setCode,
@@ -765,15 +845,22 @@ class FilterState {
     this.sortAscending = true,
   });
 
+  /// Slider upper bounds; the top stop means "no limit".
+  static const double mvMax = 16;
+  static const double statMax = 10;
+
   FilterState copyWith({
     String? nameText,
     Set<String>? types,
     String? oracleText,
     Map<String, String>? otags,
+    Map<String, String>? atags,
     Set<String>? colors,
     String? colorMode,
     Set<String>? identity,
     RangeValues? mv,
+    RangeValues? pow,
+    RangeValues? tou,
     String? format,
     bool clearFormat = false,
     Set<String>? rarities,
@@ -788,10 +875,13 @@ class FilterState {
         types: types ?? this.types,
         oracleText: oracleText ?? this.oracleText,
         otags: otags ?? this.otags,
+        atags: atags ?? this.atags,
         colors: colors ?? this.colors,
         colorMode: colorMode ?? this.colorMode,
         identity: identity ?? this.identity,
         mv: mv ?? this.mv,
+        pow: pow ?? this.pow,
+        tou: tou ?? this.tou,
         format: clearFormat ? null : (format ?? this.format),
         rarities: rarities ?? this.rarities,
         setCode: clearSet ? null : (setCode ?? this.setCode),
@@ -818,12 +908,21 @@ class FilterState {
     for (final slug in otags.keys) {
       parts.add('otag:${quote(slug)}');
     }
+    for (final slug in atags.keys) {
+      parts.add('atag:${quote(slug)}');
+    }
     if (colors.isNotEmpty) {
       parts.add('c$colorMode${colors.join().toLowerCase()}');
     }
     if (identity.isNotEmpty) parts.add('id:${identity.join().toLowerCase()}');
-    if (mv.start > 0) parts.add('mv>=${mv.start.round()}');
-    if (mv.end < 16) parts.add('mv<=${mv.end.round()}');
+    void range(String field, RangeValues r, double max) {
+      if (r.start > 0) parts.add('$field>=${r.start.round()}');
+      if (r.end < max) parts.add('$field<=${r.end.round()}');
+    }
+
+    range('mv', mv, mvMax);
+    range('pow', pow, statMax);
+    range('tou', tou, statMax);
     if (format != null) parts.add('f:$format');
     if (rarities.isNotEmpty) {
       parts.add(rarities.length == 1
@@ -854,11 +953,16 @@ class FilterState {
         'types': types.toList(),
         'oracleText': oracleText,
         'otags': otags,
+        'atags': atags,
         'colors': colors.toList(),
         'colorMode': colorMode,
         'identity': identity.toList(),
         'mvStart': mv.start,
         'mvEnd': mv.end,
+        'powStart': pow.start,
+        'powEnd': pow.end,
+        'touStart': tou.start,
+        'touEnd': tou.end,
         'format': format,
         'rarities': rarities.toList(),
         'setCode': setCode,
@@ -874,13 +978,15 @@ class FilterState {
         otags: {
           ...(json['otags'] as Map? ?? const {}).cast<String, String>()
         },
+        atags: {
+          ...(json['atags'] as Map? ?? const {}).cast<String, String>()
+        },
         colors: {...(json['colors'] as List? ?? const []).cast<String>()},
         colorMode: json['colorMode'] as String? ?? ':',
         identity: {...(json['identity'] as List? ?? const []).cast<String>()},
-        mv: RangeValues(
-          (json['mvStart'] as num? ?? 0).toDouble(),
-          (json['mvEnd'] as num? ?? 16).toDouble(),
-        ),
+        mv: _range(json, 'mv', mvMax),
+        pow: _range(json, 'pow', statMax),
+        tou: _range(json, 'tou', statMax),
         format: json['format'] as String?,
         rarities: {...(json['rarities'] as List? ?? const []).cast<String>()},
         setCode: json['setCode'] as String?,
@@ -888,7 +994,120 @@ class FilterState {
         sort: json['sort'] as String? ?? 'name',
         sortAscending: json['sortAscending'] as bool? ?? true,
       );
+
+  /// Missing keys (filters saved before that slider existed) mean the full
+  /// range.
+  static RangeValues _range(
+          Map<String, dynamic> json, String key, double max) =>
+      RangeValues(
+        (json['${key}Start'] as num? ?? 0).toDouble(),
+        (json['${key}End'] as num? ?? max).toDouble(),
+      );
+
+  /// This filter with [section] back at its default — what switching the
+  /// section off in settings does, so a hidden filter never applies.
+  FilterState cleared(FilterSection section) {
+    const d = FilterState();
+    return switch (section) {
+      FilterSection.name => copyWith(nameText: ''),
+      FilterSection.types => copyWith(types: const {}),
+      FilterSection.rulesText => copyWith(oracleText: ''),
+      FilterSection.oracleTags => copyWith(otags: const {}),
+      FilterSection.artTags => copyWith(atags: const {}),
+      FilterSection.colors => copyWith(colors: const {}, colorMode: d.colorMode),
+      FilterSection.identity => copyWith(identity: const {}),
+      FilterSection.manaValue => copyWith(mv: d.mv),
+      FilterSection.power => copyWith(pow: d.pow),
+      FilterSection.toughness => copyWith(tou: d.tou),
+      FilterSection.format => copyWith(clearFormat: true),
+      FilterSection.rarity => copyWith(rarities: const {}),
+      FilterSection.set => copyWith(clearSet: true),
+      FilterSection.sort =>
+        copyWith(sort: d.sort, sortAscending: d.sortAscending),
+    };
+  }
+
+  /// Whether [section] holds anything other than its default.
+  bool isActive(FilterSection section) {
+    const d = FilterState();
+    return switch (section) {
+      FilterSection.name => nameText.trim().isNotEmpty,
+      FilterSection.types => types.isNotEmpty,
+      FilterSection.rulesText => oracleText.trim().isNotEmpty,
+      FilterSection.oracleTags => otags.isNotEmpty,
+      FilterSection.artTags => atags.isNotEmpty,
+      FilterSection.colors => colors.isNotEmpty,
+      FilterSection.identity => identity.isNotEmpty,
+      FilterSection.manaValue => mv != d.mv,
+      FilterSection.power => pow != d.pow,
+      FilterSection.toughness => tou != d.tou,
+      FilterSection.format => format != null,
+      FilterSection.rarity => rarities.isNotEmpty,
+      FilterSection.set => setCode != null,
+      FilterSection.sort => sort != d.sort || sortAscending != d.sortAscending,
+    };
+  }
 }
+
+/// The filter panel's sections, in display order, for the settings toggles
+/// that hide the ones a user never touches.
+enum FilterSection {
+  name('Card name'),
+  types('Types'),
+  rulesText('Rules text'),
+  oracleTags('Oracle tags'),
+  artTags('Art tags'),
+  colors('Colors'),
+  identity('Commander identity'),
+  manaValue('Mana value'),
+  power('Power'),
+  toughness('Toughness'),
+  format('Format'),
+  rarity('Rarity'),
+  set('Set'),
+  sort('Sort');
+
+  final String label;
+  const FilterSection(this.label);
+}
+
+/// Filter-panel sections the user switched off in settings. Persisted by
+/// enum name; unknown names (from another app version) are dropped.
+class HiddenFilterSectionsNotifier extends Notifier<Set<FilterSection>> {
+  static const _key = 'hiddenFilterSections';
+
+  static const defaultHidden = {
+    FilterSection.oracleTags,
+    FilterSection.artTags,
+    FilterSection.manaValue,
+    FilterSection.power,
+    FilterSection.toughness,
+    FilterSection.format,
+    FilterSection.rarity,
+    FilterSection.set,
+  };
+
+  @override
+  Set<FilterSection> build() {
+    final names = ref.watch(prefsProvider).getStringList(_key);
+    if (names == null) return defaultHidden;
+    return {
+      for (final s in FilterSection.values)
+        if (names.contains(s.name)) s
+    };
+  }
+
+  void setVisible(FilterSection section, bool visible) {
+    final next = {...state};
+    visible ? next.remove(section) : next.add(section);
+    state = next;
+    ref.read(prefsProvider).setStringList(_key, [for (final s in next) s.name]);
+  }
+}
+
+final hiddenFilterSectionsProvider =
+    NotifierProvider<HiddenFilterSectionsNotifier, Set<FilterSection>>(
+        HiddenFilterSectionsNotifier.new);
 
 /// The filter applied on app start and by Reset, edited from the settings
 /// screen and persisted across launches.
@@ -1025,6 +1244,29 @@ final cardTagsProvider = FutureProvider.autoDispose
     return const [];
   }
   return repo.tagsForCard(oracleId);
+});
+
+/// Art tags on one printing, or empty without an art-tag pack or card data
+/// that records illustrations — the detail screen then omits the section.
+final cardArtTagsProvider = FutureProvider.autoDispose
+    .family<List<(String, String)>, String>((ref, printId) async {
+  final repo = ref.watch(cardRepositoryProvider);
+  if (repo == null ||
+      !await ref.watch(artTagsInstalledProvider.future) ||
+      !await ref.watch(artIndexedProvider.future)) {
+    return const [];
+  }
+  return repo.artTagsForPrint(printId);
+});
+
+/// Art tags for the filter sheet, or empty when the pack has none (not
+/// installed, or from before art tags) — which hides the section.
+final allArtTagsProvider = FutureProvider<List<(String, String)>>((ref) async {
+  final repo = ref.watch(cardRepositoryProvider);
+  if (repo == null || !await ref.watch(artTagsInstalledProvider.future)) {
+    return const [];
+  }
+  return repo.allArtTags();
 });
 
 /// Oracle tags for the filter sheet, or empty when the pack isn't installed —

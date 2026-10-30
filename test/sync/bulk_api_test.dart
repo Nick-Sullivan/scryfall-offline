@@ -60,8 +60,8 @@ void main() {
     });
   });
 
-  group('BulkApi.fetchOracleTagsInfo', () {
-    test('resolves the oracle_tags entry, preferring jsonl', () async {
+  group('BulkApi.fetchTagsInfo', () {
+    test('resolves both tag entries, preferring jsonl', () async {
       final client = MockClient((req) async {
         expect(req.url.toString(), 'https://api.scryfall.com/bulk-data');
         expect(req.headers['User-Agent'], contains('ScryfallApp/'));
@@ -83,17 +83,29 @@ void main() {
                   'jsonl_download_uri':
                       'https://data.scryfall.io/tags.jsonl.gz',
                 },
+                {
+                  'type': 'art_tags',
+                  'updated_at': '2026-07-17T21:01:20.000+00:00',
+                  'size': 40000000,
+                  'download_uri': 'https://data.scryfall.io/art.json',
+                  'jsonl_download_uri':
+                      'https://data.scryfall.io/art.jsonl.gz',
+                },
               ],
             }),
             200);
       });
       final api = BulkApi(client, appVersion: 'test');
-      final info = await api.fetchOracleTagsInfo();
+      final both = await api.fetchTagsInfo();
+      final info = both.oracle;
       expect(info.type, 'oracle_tags');
       expect(info.downloadUri.toString(),
           'https://data.scryfall.io/tags.jsonl.gz');
       expect(info.isGzip, isTrue);
       expect(info.updatedAt, '2026-07-17T21:00:36.823+00:00');
+      expect(both.art.type, 'art_tags');
+      expect(both.art.downloadUri.toString(),
+          'https://data.scryfall.io/art.jsonl.gz');
     });
 
     test('throws when the entry is missing', () async {
@@ -111,7 +123,7 @@ void main() {
           }),
           200));
       final api = BulkApi(client, appVersion: 'test');
-      expect(api.fetchOracleTagsInfo(), throwsA(isA<StateError>()));
+      expect(api.fetchTagsInfo(), throwsA(isA<StateError>()));
     });
   });
 }

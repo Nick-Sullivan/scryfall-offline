@@ -50,6 +50,45 @@ class TagCards extends Table {
   Set<Column> get primaryKey => {tagId, oracleId};
 }
 
+// Art tags (the `art_tags` bulk file) live in their own parallel tables rather
+// than behind a kind column: slugs can repeat across the two vocabularies,
+// and the otag: SQL stays untouched. They tag illustrations, not cards — the
+// card DB's print_art maps illustrations back to prints and cards.
+
+class ArtTags extends Table {
+  TextColumn get id => text()();
+  TextColumn get slug => text()();
+  TextColumn get label => text()();
+  TextColumn get description => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ArtTagAliases extends Table {
+  TextColumn get alias => text()();
+  TextColumn get tagId => text()();
+
+  @override
+  Set<Column> get primaryKey => {alias, tagId};
+}
+
+class ArtTagEdges extends Table {
+  TextColumn get parentId => text()();
+  TextColumn get childId => text()();
+
+  @override
+  Set<Column> get primaryKey => {parentId, childId};
+}
+
+class ArtTagIllustrations extends Table {
+  TextColumn get tagId => text()();
+  TextColumn get illustrationId => text()();
+
+  @override
+  Set<Column> get primaryKey => {tagId, illustrationId};
+}
+
 class TagPackMeta extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
@@ -63,12 +102,28 @@ class TagPackMetaKeys {
   static const bulkUpdatedAt = 'bulkUpdatedAt';
   static const tagCount = 'tagCount';
   static const taggingCount = 'taggingCount';
+
+  /// Present only in packs built since art tags were added; its absence
+  /// marks an older, oracle-only pack.
+  static const artTagCount = 'artTagCount';
+  static const artTaggingCount = 'artTaggingCount';
 }
 
 /// Schema owner for the optional tag pack (`tags.db`). Only the ingest
 /// isolate and tests open it directly; the app reads it through an ATTACH
-/// on the live card database's connections.
-@DriftDatabase(tables: [Tags, TagAliases, TagEdges, TagCards, TagPackMeta])
+/// on the live card database's connections. Always built fresh in staging,
+/// so schema bumps need no migration.
+@DriftDatabase(tables: [
+  Tags,
+  TagAliases,
+  TagEdges,
+  TagCards,
+  ArtTags,
+  ArtTagAliases,
+  ArtTagEdges,
+  ArtTagIllustrations,
+  TagPackMeta,
+])
 class TagDatabase extends _$TagDatabase {
   TagDatabase(super.e);
 
@@ -86,7 +141,7 @@ class TagDatabase extends _$TagDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -94,6 +149,11 @@ class TagDatabase extends _$TagDatabase {
           await m.createAll();
           await customStatement(
               'CREATE UNIQUE INDEX idx_tags_slug ON tags (slug)');
+          await customStatement(
+              'CREATE UNIQUE INDEX idx_art_tags_slug ON art_tags (slug)');
+          // The detail screen looks tags up by illustration.
+          await customStatement('CREATE INDEX idx_art_tag_illustrations_ill '
+              'ON art_tag_illustrations (illustration_id)');
         },
       );
 }

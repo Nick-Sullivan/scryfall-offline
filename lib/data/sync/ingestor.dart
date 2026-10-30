@@ -33,18 +33,21 @@ class Ingestor {
     var cards = <CardsCompanion>[];
     var faces = <FacesCompanion>[];
     var prints = <PrintsCompanion>[];
+    var art = <PrintArtCompanion>[];
     var processed = 0;
 
     Future<void> flush() async {
       if (cards.isEmpty && prints.isEmpty) return;
-      final c = cards, f = faces, p = prints;
+      final c = cards, f = faces, p = prints, a = art;
       cards = [];
       faces = [];
       prints = [];
+      art = [];
       await db.batch((b) {
         b.insertAll(db.cards, c);
         b.insertAll(db.faces, f);
         b.insertAll(db.prints, p, mode: InsertMode.insertOrReplace);
+        b.insertAll(db.printArt, a, mode: InsertMode.insertOrReplace);
       });
     }
 
@@ -58,6 +61,7 @@ class Ingestor {
         _stats.faces += extracted.faces.length;
       }
       prints.add(extracted.print);
+      art.addAll(extracted.art);
       _stats.prints++;
       processed++;
       if (prints.length >= _batchSize) {

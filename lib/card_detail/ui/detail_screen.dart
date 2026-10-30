@@ -313,6 +313,7 @@ class _DetailBody extends StatelessWidget {
           _FaceText(face: face),
         ],
         _OracleTags(oracleId: card.oracleId),
+        if (json['id'] case final String printId) _ArtTags(printId: printId),
         const Divider(height: 32),
         Text('Legalities', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -395,6 +396,11 @@ class _OracleTags extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tags = ref.watch(cardTagsProvider(oracleId)).valueOrNull ?? const [];
     if (tags.isEmpty) return const SizedBox.shrink();
+    // With the filter switched off in settings the tags are still worth
+    // reading, but tapping one mustn't add a filter the user can't see.
+    final searchable = !ref
+        .watch(hiddenFilterSectionsProvider)
+        .contains(FilterSection.oracleTags);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,11 +413,13 @@ class _OracleTags extends ConsumerWidget {
           runSpacing: 4,
           children: [
             for (final (slug, label) in tags)
-              ActionChip(
-                label: Text(label),
-                tooltip: 'Search for otag:$slug',
-                onPressed: () => _search(context, ref, slug, label),
-              ),
+              searchable
+                  ? ActionChip(
+                      label: Text(label),
+                      tooltip: 'Search for otag:$slug',
+                      onPressed: () => _search(context, ref, slug, label),
+                    )
+                  : Chip(label: Text(label)),
           ],
         ),
       ],
@@ -423,6 +431,57 @@ class _OracleTags extends ConsumerWidget {
   void _search(BuildContext context, WidgetRef ref, String slug, String label) {
     final next = ref.read(filterProvider).copyWith(
         otags: {...ref.read(filterProvider).otags, slug: label});
+    ref.read(filterProvider.notifier).set(next);
+    ref.read(searchProvider.notifier).setQuery(next.toSyntax());
+    context.go('/');
+  }
+}
+
+/// Art tags on the printing being shown — art differs between printings, so
+/// this follows the print picker. Each chip adds an `atag:` to the filter.
+/// Renders nothing without art-tag data (or when the art is untagged).
+class _ArtTags extends ConsumerWidget {
+  final String printId;
+
+  const _ArtTags({required this.printId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tags =
+        ref.watch(cardArtTagsProvider(printId)).valueOrNull ?? const [];
+    if (tags.isEmpty) return const SizedBox.shrink();
+    final searchable = !ref
+        .watch(hiddenFilterSectionsProvider)
+        .contains(FilterSection.artTags);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 32),
+        Text('Art tags', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final (slug, label) in tags)
+              searchable
+                  ? ActionChip(
+                      label: Text(label),
+                      tooltip: 'Search for atag:$slug',
+                      onPressed: () => _search(context, ref, slug, label),
+                    )
+                  : Chip(label: Text(label)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Same as the oracle-tag chips: composes with the active filter.
+  void _search(BuildContext context, WidgetRef ref, String slug, String label) {
+    final next = ref.read(filterProvider).copyWith(
+        atags: {...ref.read(filterProvider).atags, slug: label});
     ref.read(filterProvider.notifier).set(next);
     ref.read(searchProvider.notifier).setQuery(next.toSyntax());
     context.go('/');

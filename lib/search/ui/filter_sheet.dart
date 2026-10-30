@@ -77,7 +77,13 @@ class _FilterPanel extends ConsumerWidget {
                   ],
                 ),
               ),
-              Expanded(child: FilterForm(value: filter, onChanged: push)),
+              Expanded(
+                child: FilterForm(
+                  value: filter,
+                  onChanged: push,
+                  hidden: ref.watch(hiddenFilterSectionsProvider),
+                ),
+              ),
             ],
           ),
         ),

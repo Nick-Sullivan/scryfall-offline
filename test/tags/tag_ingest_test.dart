@@ -8,8 +8,9 @@ import 'package:scryfall_app/data/tags/tag_ingestor.dart';
 
 import '../helpers/test_db.dart';
 
-Stream<Map<String, dynamic>> fixtureStream() =>
-    File('test/fixtures/tags_fixture.jsonl')
+Stream<Map<String, dynamic>> fixtureStream(
+        [String name = 'tags_fixture.jsonl']) =>
+    File('test/fixtures/$name')
         .openRead()
         .transform(utf8.decoder)
         .transform(const LineSplitter())
@@ -26,14 +27,15 @@ void main() {
       db = TagDatabase.local();
       ingestor = TagIngestor(db);
       await ingestor.ingestTags(fixtureStream());
+      await ingestor.ingestTags(fixtureStream('art_tags_fixture.jsonl'));
       await ingestor.finalize(bulkUpdatedAt: '2026-07-17T21:00:36.823+00:00');
     });
 
     tearDownAll(() => db.close());
 
-    test('ingests oracle tags, skipping non-oracle lines', () async {
+    test('ingests oracle tags, keeping illustration tags out', () async {
       final tags = await db.select(db.tags).get();
-      // 5 oracle tags; the 'illustration' line is skipped.
+      // 5 oracle tags; 'illustration' lines go to the art tables.
       expect(tags.length, 5);
       expect(tags.map((t) => t.slug), isNot(contains('squirrel-art')));
       expect(ingestor.stats.tags, 5);
@@ -76,10 +78,48 @@ void main() {
       };
       expect(meta[TagPackMetaKeys.tagCount], '5');
       expect(meta[TagPackMetaKeys.taggingCount], '7');
+      expect(meta[TagPackMetaKeys.artTagCount], '4');
+      expect(meta[TagPackMetaKeys.artTaggingCount], '3');
       expect(meta[TagPackMetaKeys.bulkUpdatedAt],
           '2026-07-17T21:00:36.823+00:00');
       expect(DateTime.tryParse(meta[TagPackMetaKeys.fetchedAt] ?? ''),
           isNotNull);
+    });
+  });
+
+  group('TagIngestor art tags', () {
+    late TagDatabase db;
+    late TagIngestor ingestor;
+
+    setUpAll(() async {
+      db = TagDatabase.local();
+      ingestor = TagIngestor(db);
+      await ingestor.ingestTags(fixtureStream());
+      await ingestor.ingestTags(fixtureStream('art_tags_fixture.jsonl'));
+      await ingestor.finalize();
+    });
+
+    tearDownAll(() => db.close());
+
+    test('illustration tags land in the art tables', () async {
+      final tags = await db.select(db.artTags).get();
+      expect(tags.map((t) => t.slug).toSet(),
+          {'fire', 'lightning', 'insect', 'squirrel-art'});
+      expect(ingestor.stats.artTags, 4);
+    });
+
+    test('art edges, aliases and illustration taggings', () async {
+      final edges = await db.select(db.artTagEdges).get();
+      expect(edges.single.parentId, endsWith('01'));
+      expect(edges.single.childId, endsWith('02'));
+      expect((await db.select(db.artTagAliases).get()).single.alias,
+          'electricity');
+
+      // squirrel-art's taggings name an oracle_id, not an illustration, so
+      // they're skipped.
+      final ills = await db.select(db.artTagIllustrations).get();
+      expect(ills.length, 3);
+      expect(ingestor.stats.artTaggings, 3);
     });
   });
 

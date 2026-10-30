@@ -5,9 +5,17 @@ import 'package:drift/drift.dart';
 import '../../search/compiler/sql_compiler.dart';
 import '../db/database.dart';
 
-/// One search-result tile (oracle grain + its preferred print's images).
+/// One search-result tile (oracle grain + the images of the print it shows:
+/// the preferred print, or one matching an `atag:` search).
 class CardSummary {
   final String oracleId;
+
+  /// The print whose images these are; null if the card has none.
+  final String? printId;
+
+  /// Whether [printId] is the card's preferred print — the one the offline
+  /// image pack stores, so its local file only stands in when this is true.
+  final bool isPreferredPrint;
   final String name;
   final String? manaCost;
   final String typeLine;
@@ -16,6 +24,8 @@ class CardSummary {
 
   const CardSummary({
     required this.oracleId,
+    this.printId,
+    this.isPreferredPrint = true,
     required this.name,
     required this.manaCost,
     required this.typeLine,
@@ -108,10 +118,13 @@ class CardRepository {
 
   static const _summaryColumns =
       'cards.oracle_id, cards.name, cards.mana_cost, cards.type_line, '
+      'p.id AS print_id, p.id IS cards.preferred_print_id AS is_preferred, '
       'p.image_uri_small, p.image_uri_normal';
 
   static CardSummary _summary(QueryRow r) => CardSummary(
         oracleId: r.data['oracle_id'] as String,
+        printId: r.data['print_id'] as String?,
+        isPreferredPrint: r.data['is_preferred'] == 1,
         name: r.data['name'] as String,
         manaCost: r.data['mana_cost'] as String?,
         typeLine: r.data['type_line'] as String,
@@ -123,12 +136,18 @@ class CardRepository {
   /// paint results without waiting on the full-table COUNT(*).
   Future<List<CardSummary>> searchRows(CompiledQuery query,
       {required int limit, required int offset}) async {
+    final shown = switch (query.displayPrint) {
+      final display? => 'COALESCE($display, cards.preferred_print_id)',
+      null => 'cards.preferred_print_id',
+    };
     final rows = await db.customSelect(
       'SELECT $_summaryColumns '
-      'FROM cards LEFT JOIN prints p ON p.id = cards.preferred_print_id '
+      'FROM cards LEFT JOIN prints p ON p.id = $shown '
       'WHERE ${query.where} ORDER BY ${query.orderBy} '
       'LIMIT $limit OFFSET $offset',
-      variables: [for (final p in query.params) Variable(p)],
+      variables: [
+        for (final p in [...query.displayParams, ...query.params]) Variable(p)
+      ],
     ).get();
     return [for (final r in rows) _summary(r)];
   }
@@ -311,6 +330,35 @@ class CardRepository {
         'JOIN tagdb.tags t ON t.id = tc.tag_id '
         'WHERE tc.oracle_id = ? ORDER BY t.label',
         variables: [Variable(oracleId)]).get();
+    return [
+      for (final r in rows)
+        (r.data['slug'] as String, r.data['label'] as String)
+    ];
+  }
+
+  /// Art tags (slug, label) on one printing's illustrations — every face of
+  /// a double-faced print — alphabetical by label. Direct taggings only.
+  /// Needs a tag pack with art tags (see artTagsInstalledProvider).
+  Future<List<(String, String)>> artTagsForPrint(String printId) async {
+    final rows = await db.customSelect(
+        'SELECT DISTINCT t.slug, t.label FROM print_art pa '
+        'JOIN tagdb.art_tag_illustrations ti '
+        'ON ti.illustration_id = pa.illustration_id '
+        'JOIN tagdb.art_tags t ON t.id = ti.tag_id '
+        'WHERE pa.print_id = ? ORDER BY t.label',
+        variables: [Variable(printId)]).get();
+    return [
+      for (final r in rows)
+        (r.data['slug'] as String, r.data['label'] as String)
+    ];
+  }
+
+  /// Art tags (slug, label) for the filter sheet's art tag autocomplete.
+  /// Same requirement as [artTagsForPrint].
+  Future<List<(String, String)>> allArtTags() async {
+    final rows = await db
+        .customSelect('SELECT slug, label FROM tagdb.art_tags ORDER BY label')
+        .get();
     return [
       for (final r in rows)
         (r.data['slug'] as String, r.data['label'] as String)

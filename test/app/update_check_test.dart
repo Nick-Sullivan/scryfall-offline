@@ -66,7 +66,12 @@ void main() {
       expect(requests, 0);
     });
 
+    // Every ingest records the schema it was built with.
+    Future<void> seedSchema([int version = schemaVersionValue]) =>
+        repo.setMetaEntry(MetaKeys.schemaVersion, '$version');
+
     test('stored total matches server -> false', () async {
+      await seedSchema();
       await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
       final container = await makeContainer();
       container.listen(updateCheckProvider, (_, __) {});
@@ -75,6 +80,7 @@ void main() {
     });
 
     test('server has more cards -> true', () async {
+      await seedSchema();
       await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
       serverTotal = 105;
       final container = await makeContainer();
@@ -83,6 +89,7 @@ void main() {
     });
 
     test('offline with no cached total -> null', () async {
+      await seedSchema();
       await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
       final container = await makeContainer(client: offlineClient());
       container.listen(updateCheckProvider, (_, __) {});
@@ -91,11 +98,22 @@ void main() {
 
     test('pre-existing install without stored total is seeded, no prompt',
         () async {
+      await seedSchema();
       await repo.setMetaEntry(MetaKeys.cardCount, '31000'); // old-style meta
       final container = await makeContainer();
       container.listen(updateCheckProvider, (_, __) {});
       expect(await container.read(updateCheckProvider.future), isFalse);
       expect((await repo.metaEntries())[MetaKeys.setsCardTotal], '100');
+    });
+
+    test('database built by an older schema -> true, even when up to date',
+        () async {
+      await seedSchema(schemaVersionValue - 1);
+      await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
+      final container = await makeContainer();
+      container.listen(updateCheckProvider, (_, __) {});
+      expect(await container.read(updateCheckProvider.future), isTrue);
+      expect(requests, 0);
     });
   });
 

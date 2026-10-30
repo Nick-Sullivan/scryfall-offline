@@ -947,6 +947,964 @@ class TagCardsCompanion extends UpdateCompanion<TagCard> {
   }
 }
 
+class $ArtTagsTable extends ArtTags with TableInfo<$ArtTagsTable, ArtTag> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtTagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _slugMeta = const VerificationMeta('slug');
+  @override
+  late final GeneratedColumn<String> slug = GeneratedColumn<String>(
+    'slug',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, slug, label, description];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'art_tags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtTag> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('slug')) {
+      context.handle(
+        _slugMeta,
+        slug.isAcceptableOrUnknown(data['slug']!, _slugMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_slugMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ArtTag map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtTag(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      slug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}slug'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+    );
+  }
+
+  @override
+  $ArtTagsTable createAlias(String alias) {
+    return $ArtTagsTable(attachedDatabase, alias);
+  }
+}
+
+class ArtTag extends DataClass implements Insertable<ArtTag> {
+  final String id;
+  final String slug;
+  final String label;
+  final String? description;
+  const ArtTag({
+    required this.id,
+    required this.slug,
+    required this.label,
+    this.description,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['slug'] = Variable<String>(slug);
+    map['label'] = Variable<String>(label);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    return map;
+  }
+
+  ArtTagsCompanion toCompanion(bool nullToAbsent) {
+    return ArtTagsCompanion(
+      id: Value(id),
+      slug: Value(slug),
+      label: Value(label),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+    );
+  }
+
+  factory ArtTag.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtTag(
+      id: serializer.fromJson<String>(json['id']),
+      slug: serializer.fromJson<String>(json['slug']),
+      label: serializer.fromJson<String>(json['label']),
+      description: serializer.fromJson<String?>(json['description']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'slug': serializer.toJson<String>(slug),
+      'label': serializer.toJson<String>(label),
+      'description': serializer.toJson<String?>(description),
+    };
+  }
+
+  ArtTag copyWith({
+    String? id,
+    String? slug,
+    String? label,
+    Value<String?> description = const Value.absent(),
+  }) => ArtTag(
+    id: id ?? this.id,
+    slug: slug ?? this.slug,
+    label: label ?? this.label,
+    description: description.present ? description.value : this.description,
+  );
+  ArtTag copyWithCompanion(ArtTagsCompanion data) {
+    return ArtTag(
+      id: data.id.present ? data.id.value : this.id,
+      slug: data.slug.present ? data.slug.value : this.slug,
+      label: data.label.present ? data.label.value : this.label,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTag(')
+          ..write('id: $id, ')
+          ..write('slug: $slug, ')
+          ..write('label: $label, ')
+          ..write('description: $description')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, slug, label, description);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtTag &&
+          other.id == this.id &&
+          other.slug == this.slug &&
+          other.label == this.label &&
+          other.description == this.description);
+}
+
+class ArtTagsCompanion extends UpdateCompanion<ArtTag> {
+  final Value<String> id;
+  final Value<String> slug;
+  final Value<String> label;
+  final Value<String?> description;
+  final Value<int> rowid;
+  const ArtTagsCompanion({
+    this.id = const Value.absent(),
+    this.slug = const Value.absent(),
+    this.label = const Value.absent(),
+    this.description = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ArtTagsCompanion.insert({
+    required String id,
+    required String slug,
+    required String label,
+    this.description = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       slug = Value(slug),
+       label = Value(label);
+  static Insertable<ArtTag> custom({
+    Expression<String>? id,
+    Expression<String>? slug,
+    Expression<String>? label,
+    Expression<String>? description,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (slug != null) 'slug': slug,
+      if (label != null) 'label': label,
+      if (description != null) 'description': description,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ArtTagsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? slug,
+    Value<String>? label,
+    Value<String?>? description,
+    Value<int>? rowid,
+  }) {
+    return ArtTagsCompanion(
+      id: id ?? this.id,
+      slug: slug ?? this.slug,
+      label: label ?? this.label,
+      description: description ?? this.description,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (slug.present) {
+      map['slug'] = Variable<String>(slug.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagsCompanion(')
+          ..write('id: $id, ')
+          ..write('slug: $slug, ')
+          ..write('label: $label, ')
+          ..write('description: $description, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ArtTagAliasesTable extends ArtTagAliases
+    with TableInfo<$ArtTagAliasesTable, ArtTagAliase> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtTagAliasesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _aliasMeta = const VerificationMeta('alias');
+  @override
+  late final GeneratedColumn<String> alias = GeneratedColumn<String>(
+    'alias',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tagIdMeta = const VerificationMeta('tagId');
+  @override
+  late final GeneratedColumn<String> tagId = GeneratedColumn<String>(
+    'tag_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [alias, tagId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'art_tag_aliases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtTagAliase> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('alias')) {
+      context.handle(
+        _aliasMeta,
+        alias.isAcceptableOrUnknown(data['alias']!, _aliasMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_aliasMeta);
+    }
+    if (data.containsKey('tag_id')) {
+      context.handle(
+        _tagIdMeta,
+        tagId.isAcceptableOrUnknown(data['tag_id']!, _tagIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {alias, tagId};
+  @override
+  ArtTagAliase map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtTagAliase(
+      alias: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}alias'],
+      )!,
+      tagId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ArtTagAliasesTable createAlias(String alias) {
+    return $ArtTagAliasesTable(attachedDatabase, alias);
+  }
+}
+
+class ArtTagAliase extends DataClass implements Insertable<ArtTagAliase> {
+  final String alias;
+  final String tagId;
+  const ArtTagAliase({required this.alias, required this.tagId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['alias'] = Variable<String>(alias);
+    map['tag_id'] = Variable<String>(tagId);
+    return map;
+  }
+
+  ArtTagAliasesCompanion toCompanion(bool nullToAbsent) {
+    return ArtTagAliasesCompanion(alias: Value(alias), tagId: Value(tagId));
+  }
+
+  factory ArtTagAliase.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtTagAliase(
+      alias: serializer.fromJson<String>(json['alias']),
+      tagId: serializer.fromJson<String>(json['tagId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'alias': serializer.toJson<String>(alias),
+      'tagId': serializer.toJson<String>(tagId),
+    };
+  }
+
+  ArtTagAliase copyWith({String? alias, String? tagId}) =>
+      ArtTagAliase(alias: alias ?? this.alias, tagId: tagId ?? this.tagId);
+  ArtTagAliase copyWithCompanion(ArtTagAliasesCompanion data) {
+    return ArtTagAliase(
+      alias: data.alias.present ? data.alias.value : this.alias,
+      tagId: data.tagId.present ? data.tagId.value : this.tagId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagAliase(')
+          ..write('alias: $alias, ')
+          ..write('tagId: $tagId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(alias, tagId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtTagAliase &&
+          other.alias == this.alias &&
+          other.tagId == this.tagId);
+}
+
+class ArtTagAliasesCompanion extends UpdateCompanion<ArtTagAliase> {
+  final Value<String> alias;
+  final Value<String> tagId;
+  final Value<int> rowid;
+  const ArtTagAliasesCompanion({
+    this.alias = const Value.absent(),
+    this.tagId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ArtTagAliasesCompanion.insert({
+    required String alias,
+    required String tagId,
+    this.rowid = const Value.absent(),
+  }) : alias = Value(alias),
+       tagId = Value(tagId);
+  static Insertable<ArtTagAliase> custom({
+    Expression<String>? alias,
+    Expression<String>? tagId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (alias != null) 'alias': alias,
+      if (tagId != null) 'tag_id': tagId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ArtTagAliasesCompanion copyWith({
+    Value<String>? alias,
+    Value<String>? tagId,
+    Value<int>? rowid,
+  }) {
+    return ArtTagAliasesCompanion(
+      alias: alias ?? this.alias,
+      tagId: tagId ?? this.tagId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (alias.present) {
+      map['alias'] = Variable<String>(alias.value);
+    }
+    if (tagId.present) {
+      map['tag_id'] = Variable<String>(tagId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagAliasesCompanion(')
+          ..write('alias: $alias, ')
+          ..write('tagId: $tagId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ArtTagEdgesTable extends ArtTagEdges
+    with TableInfo<$ArtTagEdgesTable, ArtTagEdge> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtTagEdgesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _parentIdMeta = const VerificationMeta(
+    'parentId',
+  );
+  @override
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+    'parent_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [parentId, childId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'art_tag_edges';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtTagEdge> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('parent_id')) {
+      context.handle(
+        _parentIdMeta,
+        parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_parentIdMeta);
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_childIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {parentId, childId};
+  @override
+  ArtTagEdge map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtTagEdge(
+      parentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_id'],
+      )!,
+      childId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ArtTagEdgesTable createAlias(String alias) {
+    return $ArtTagEdgesTable(attachedDatabase, alias);
+  }
+}
+
+class ArtTagEdge extends DataClass implements Insertable<ArtTagEdge> {
+  final String parentId;
+  final String childId;
+  const ArtTagEdge({required this.parentId, required this.childId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['parent_id'] = Variable<String>(parentId);
+    map['child_id'] = Variable<String>(childId);
+    return map;
+  }
+
+  ArtTagEdgesCompanion toCompanion(bool nullToAbsent) {
+    return ArtTagEdgesCompanion(
+      parentId: Value(parentId),
+      childId: Value(childId),
+    );
+  }
+
+  factory ArtTagEdge.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtTagEdge(
+      parentId: serializer.fromJson<String>(json['parentId']),
+      childId: serializer.fromJson<String>(json['childId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'parentId': serializer.toJson<String>(parentId),
+      'childId': serializer.toJson<String>(childId),
+    };
+  }
+
+  ArtTagEdge copyWith({String? parentId, String? childId}) => ArtTagEdge(
+    parentId: parentId ?? this.parentId,
+    childId: childId ?? this.childId,
+  );
+  ArtTagEdge copyWithCompanion(ArtTagEdgesCompanion data) {
+    return ArtTagEdge(
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      childId: data.childId.present ? data.childId.value : this.childId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagEdge(')
+          ..write('parentId: $parentId, ')
+          ..write('childId: $childId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(parentId, childId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtTagEdge &&
+          other.parentId == this.parentId &&
+          other.childId == this.childId);
+}
+
+class ArtTagEdgesCompanion extends UpdateCompanion<ArtTagEdge> {
+  final Value<String> parentId;
+  final Value<String> childId;
+  final Value<int> rowid;
+  const ArtTagEdgesCompanion({
+    this.parentId = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ArtTagEdgesCompanion.insert({
+    required String parentId,
+    required String childId,
+    this.rowid = const Value.absent(),
+  }) : parentId = Value(parentId),
+       childId = Value(childId);
+  static Insertable<ArtTagEdge> custom({
+    Expression<String>? parentId,
+    Expression<String>? childId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (parentId != null) 'parent_id': parentId,
+      if (childId != null) 'child_id': childId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ArtTagEdgesCompanion copyWith({
+    Value<String>? parentId,
+    Value<String>? childId,
+    Value<int>? rowid,
+  }) {
+    return ArtTagEdgesCompanion(
+      parentId: parentId ?? this.parentId,
+      childId: childId ?? this.childId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagEdgesCompanion(')
+          ..write('parentId: $parentId, ')
+          ..write('childId: $childId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ArtTagIllustrationsTable extends ArtTagIllustrations
+    with TableInfo<$ArtTagIllustrationsTable, ArtTagIllustration> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtTagIllustrationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _tagIdMeta = const VerificationMeta('tagId');
+  @override
+  late final GeneratedColumn<String> tagId = GeneratedColumn<String>(
+    'tag_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _illustrationIdMeta = const VerificationMeta(
+    'illustrationId',
+  );
+  @override
+  late final GeneratedColumn<String> illustrationId = GeneratedColumn<String>(
+    'illustration_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [tagId, illustrationId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'art_tag_illustrations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtTagIllustration> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('tag_id')) {
+      context.handle(
+        _tagIdMeta,
+        tagId.isAcceptableOrUnknown(data['tag_id']!, _tagIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagIdMeta);
+    }
+    if (data.containsKey('illustration_id')) {
+      context.handle(
+        _illustrationIdMeta,
+        illustrationId.isAcceptableOrUnknown(
+          data['illustration_id']!,
+          _illustrationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_illustrationIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {tagId, illustrationId};
+  @override
+  ArtTagIllustration map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtTagIllustration(
+      tagId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag_id'],
+      )!,
+      illustrationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}illustration_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ArtTagIllustrationsTable createAlias(String alias) {
+    return $ArtTagIllustrationsTable(attachedDatabase, alias);
+  }
+}
+
+class ArtTagIllustration extends DataClass
+    implements Insertable<ArtTagIllustration> {
+  final String tagId;
+  final String illustrationId;
+  const ArtTagIllustration({required this.tagId, required this.illustrationId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['tag_id'] = Variable<String>(tagId);
+    map['illustration_id'] = Variable<String>(illustrationId);
+    return map;
+  }
+
+  ArtTagIllustrationsCompanion toCompanion(bool nullToAbsent) {
+    return ArtTagIllustrationsCompanion(
+      tagId: Value(tagId),
+      illustrationId: Value(illustrationId),
+    );
+  }
+
+  factory ArtTagIllustration.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtTagIllustration(
+      tagId: serializer.fromJson<String>(json['tagId']),
+      illustrationId: serializer.fromJson<String>(json['illustrationId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'tagId': serializer.toJson<String>(tagId),
+      'illustrationId': serializer.toJson<String>(illustrationId),
+    };
+  }
+
+  ArtTagIllustration copyWith({String? tagId, String? illustrationId}) =>
+      ArtTagIllustration(
+        tagId: tagId ?? this.tagId,
+        illustrationId: illustrationId ?? this.illustrationId,
+      );
+  ArtTagIllustration copyWithCompanion(ArtTagIllustrationsCompanion data) {
+    return ArtTagIllustration(
+      tagId: data.tagId.present ? data.tagId.value : this.tagId,
+      illustrationId: data.illustrationId.present
+          ? data.illustrationId.value
+          : this.illustrationId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagIllustration(')
+          ..write('tagId: $tagId, ')
+          ..write('illustrationId: $illustrationId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(tagId, illustrationId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtTagIllustration &&
+          other.tagId == this.tagId &&
+          other.illustrationId == this.illustrationId);
+}
+
+class ArtTagIllustrationsCompanion extends UpdateCompanion<ArtTagIllustration> {
+  final Value<String> tagId;
+  final Value<String> illustrationId;
+  final Value<int> rowid;
+  const ArtTagIllustrationsCompanion({
+    this.tagId = const Value.absent(),
+    this.illustrationId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ArtTagIllustrationsCompanion.insert({
+    required String tagId,
+    required String illustrationId,
+    this.rowid = const Value.absent(),
+  }) : tagId = Value(tagId),
+       illustrationId = Value(illustrationId);
+  static Insertable<ArtTagIllustration> custom({
+    Expression<String>? tagId,
+    Expression<String>? illustrationId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (tagId != null) 'tag_id': tagId,
+      if (illustrationId != null) 'illustration_id': illustrationId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ArtTagIllustrationsCompanion copyWith({
+    Value<String>? tagId,
+    Value<String>? illustrationId,
+    Value<int>? rowid,
+  }) {
+    return ArtTagIllustrationsCompanion(
+      tagId: tagId ?? this.tagId,
+      illustrationId: illustrationId ?? this.illustrationId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (tagId.present) {
+      map['tag_id'] = Variable<String>(tagId.value);
+    }
+    if (illustrationId.present) {
+      map['illustration_id'] = Variable<String>(illustrationId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtTagIllustrationsCompanion(')
+          ..write('tagId: $tagId, ')
+          ..write('illustrationId: $illustrationId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TagPackMetaTable extends TagPackMeta
     with TableInfo<$TagPackMetaTable, TagPackMetaData> {
   @override
@@ -1162,6 +2120,11 @@ abstract class _$TagDatabase extends GeneratedDatabase {
   late final $TagAliasesTable tagAliases = $TagAliasesTable(this);
   late final $TagEdgesTable tagEdges = $TagEdgesTable(this);
   late final $TagCardsTable tagCards = $TagCardsTable(this);
+  late final $ArtTagsTable artTags = $ArtTagsTable(this);
+  late final $ArtTagAliasesTable artTagAliases = $ArtTagAliasesTable(this);
+  late final $ArtTagEdgesTable artTagEdges = $ArtTagEdgesTable(this);
+  late final $ArtTagIllustrationsTable artTagIllustrations =
+      $ArtTagIllustrationsTable(this);
   late final $TagPackMetaTable tagPackMeta = $TagPackMetaTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -1172,6 +2135,10 @@ abstract class _$TagDatabase extends GeneratedDatabase {
     tagAliases,
     tagEdges,
     tagCards,
+    artTags,
+    artTagAliases,
+    artTagEdges,
+    artTagIllustrations,
     tagPackMeta,
   ];
 }
@@ -1762,6 +2729,630 @@ typedef $$TagCardsTableProcessedTableManager =
       TagCard,
       PrefetchHooks Function()
     >;
+typedef $$ArtTagsTableCreateCompanionBuilder =
+    ArtTagsCompanion Function({
+      required String id,
+      required String slug,
+      required String label,
+      Value<String?> description,
+      Value<int> rowid,
+    });
+typedef $$ArtTagsTableUpdateCompanionBuilder =
+    ArtTagsCompanion Function({
+      Value<String> id,
+      Value<String> slug,
+      Value<String> label,
+      Value<String?> description,
+      Value<int> rowid,
+    });
+
+class $$ArtTagsTableFilterComposer
+    extends Composer<_$TagDatabase, $ArtTagsTable> {
+  $$ArtTagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtTagsTableOrderingComposer
+    extends Composer<_$TagDatabase, $ArtTagsTable> {
+  $$ArtTagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtTagsTableAnnotationComposer
+    extends Composer<_$TagDatabase, $ArtTagsTable> {
+  $$ArtTagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get slug =>
+      $composableBuilder(column: $table.slug, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+}
+
+class $$ArtTagsTableTableManager
+    extends
+        RootTableManager<
+          _$TagDatabase,
+          $ArtTagsTable,
+          ArtTag,
+          $$ArtTagsTableFilterComposer,
+          $$ArtTagsTableOrderingComposer,
+          $$ArtTagsTableAnnotationComposer,
+          $$ArtTagsTableCreateCompanionBuilder,
+          $$ArtTagsTableUpdateCompanionBuilder,
+          (ArtTag, BaseReferences<_$TagDatabase, $ArtTagsTable, ArtTag>),
+          ArtTag,
+          PrefetchHooks Function()
+        > {
+  $$ArtTagsTableTableManager(_$TagDatabase db, $ArtTagsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtTagsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtTagsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ArtTagsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> slug = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagsCompanion(
+                id: id,
+                slug: slug,
+                label: label,
+                description: description,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String slug,
+                required String label,
+                Value<String?> description = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagsCompanion.insert(
+                id: id,
+                slug: slug,
+                label: label,
+                description: description,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtTagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$TagDatabase,
+      $ArtTagsTable,
+      ArtTag,
+      $$ArtTagsTableFilterComposer,
+      $$ArtTagsTableOrderingComposer,
+      $$ArtTagsTableAnnotationComposer,
+      $$ArtTagsTableCreateCompanionBuilder,
+      $$ArtTagsTableUpdateCompanionBuilder,
+      (ArtTag, BaseReferences<_$TagDatabase, $ArtTagsTable, ArtTag>),
+      ArtTag,
+      PrefetchHooks Function()
+    >;
+typedef $$ArtTagAliasesTableCreateCompanionBuilder =
+    ArtTagAliasesCompanion Function({
+      required String alias,
+      required String tagId,
+      Value<int> rowid,
+    });
+typedef $$ArtTagAliasesTableUpdateCompanionBuilder =
+    ArtTagAliasesCompanion Function({
+      Value<String> alias,
+      Value<String> tagId,
+      Value<int> rowid,
+    });
+
+class $$ArtTagAliasesTableFilterComposer
+    extends Composer<_$TagDatabase, $ArtTagAliasesTable> {
+  $$ArtTagAliasesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get alias => $composableBuilder(
+    column: $table.alias,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtTagAliasesTableOrderingComposer
+    extends Composer<_$TagDatabase, $ArtTagAliasesTable> {
+  $$ArtTagAliasesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get alias => $composableBuilder(
+    column: $table.alias,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtTagAliasesTableAnnotationComposer
+    extends Composer<_$TagDatabase, $ArtTagAliasesTable> {
+  $$ArtTagAliasesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get alias =>
+      $composableBuilder(column: $table.alias, builder: (column) => column);
+
+  GeneratedColumn<String> get tagId =>
+      $composableBuilder(column: $table.tagId, builder: (column) => column);
+}
+
+class $$ArtTagAliasesTableTableManager
+    extends
+        RootTableManager<
+          _$TagDatabase,
+          $ArtTagAliasesTable,
+          ArtTagAliase,
+          $$ArtTagAliasesTableFilterComposer,
+          $$ArtTagAliasesTableOrderingComposer,
+          $$ArtTagAliasesTableAnnotationComposer,
+          $$ArtTagAliasesTableCreateCompanionBuilder,
+          $$ArtTagAliasesTableUpdateCompanionBuilder,
+          (
+            ArtTagAliase,
+            BaseReferences<_$TagDatabase, $ArtTagAliasesTable, ArtTagAliase>,
+          ),
+          ArtTagAliase,
+          PrefetchHooks Function()
+        > {
+  $$ArtTagAliasesTableTableManager(_$TagDatabase db, $ArtTagAliasesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtTagAliasesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtTagAliasesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ArtTagAliasesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> alias = const Value.absent(),
+                Value<String> tagId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagAliasesCompanion(
+                alias: alias,
+                tagId: tagId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String alias,
+                required String tagId,
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagAliasesCompanion.insert(
+                alias: alias,
+                tagId: tagId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtTagAliasesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$TagDatabase,
+      $ArtTagAliasesTable,
+      ArtTagAliase,
+      $$ArtTagAliasesTableFilterComposer,
+      $$ArtTagAliasesTableOrderingComposer,
+      $$ArtTagAliasesTableAnnotationComposer,
+      $$ArtTagAliasesTableCreateCompanionBuilder,
+      $$ArtTagAliasesTableUpdateCompanionBuilder,
+      (
+        ArtTagAliase,
+        BaseReferences<_$TagDatabase, $ArtTagAliasesTable, ArtTagAliase>,
+      ),
+      ArtTagAliase,
+      PrefetchHooks Function()
+    >;
+typedef $$ArtTagEdgesTableCreateCompanionBuilder =
+    ArtTagEdgesCompanion Function({
+      required String parentId,
+      required String childId,
+      Value<int> rowid,
+    });
+typedef $$ArtTagEdgesTableUpdateCompanionBuilder =
+    ArtTagEdgesCompanion Function({
+      Value<String> parentId,
+      Value<String> childId,
+      Value<int> rowid,
+    });
+
+class $$ArtTagEdgesTableFilterComposer
+    extends Composer<_$TagDatabase, $ArtTagEdgesTable> {
+  $$ArtTagEdgesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get childId => $composableBuilder(
+    column: $table.childId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtTagEdgesTableOrderingComposer
+    extends Composer<_$TagDatabase, $ArtTagEdgesTable> {
+  $$ArtTagEdgesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+    column: $table.childId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtTagEdgesTableAnnotationComposer
+    extends Composer<_$TagDatabase, $ArtTagEdgesTable> {
+  $$ArtTagEdgesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get parentId =>
+      $composableBuilder(column: $table.parentId, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
+}
+
+class $$ArtTagEdgesTableTableManager
+    extends
+        RootTableManager<
+          _$TagDatabase,
+          $ArtTagEdgesTable,
+          ArtTagEdge,
+          $$ArtTagEdgesTableFilterComposer,
+          $$ArtTagEdgesTableOrderingComposer,
+          $$ArtTagEdgesTableAnnotationComposer,
+          $$ArtTagEdgesTableCreateCompanionBuilder,
+          $$ArtTagEdgesTableUpdateCompanionBuilder,
+          (
+            ArtTagEdge,
+            BaseReferences<_$TagDatabase, $ArtTagEdgesTable, ArtTagEdge>,
+          ),
+          ArtTagEdge,
+          PrefetchHooks Function()
+        > {
+  $$ArtTagEdgesTableTableManager(_$TagDatabase db, $ArtTagEdgesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtTagEdgesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtTagEdgesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ArtTagEdgesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> parentId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagEdgesCompanion(
+                parentId: parentId,
+                childId: childId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String parentId,
+                required String childId,
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagEdgesCompanion.insert(
+                parentId: parentId,
+                childId: childId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtTagEdgesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$TagDatabase,
+      $ArtTagEdgesTable,
+      ArtTagEdge,
+      $$ArtTagEdgesTableFilterComposer,
+      $$ArtTagEdgesTableOrderingComposer,
+      $$ArtTagEdgesTableAnnotationComposer,
+      $$ArtTagEdgesTableCreateCompanionBuilder,
+      $$ArtTagEdgesTableUpdateCompanionBuilder,
+      (
+        ArtTagEdge,
+        BaseReferences<_$TagDatabase, $ArtTagEdgesTable, ArtTagEdge>,
+      ),
+      ArtTagEdge,
+      PrefetchHooks Function()
+    >;
+typedef $$ArtTagIllustrationsTableCreateCompanionBuilder =
+    ArtTagIllustrationsCompanion Function({
+      required String tagId,
+      required String illustrationId,
+      Value<int> rowid,
+    });
+typedef $$ArtTagIllustrationsTableUpdateCompanionBuilder =
+    ArtTagIllustrationsCompanion Function({
+      Value<String> tagId,
+      Value<String> illustrationId,
+      Value<int> rowid,
+    });
+
+class $$ArtTagIllustrationsTableFilterComposer
+    extends Composer<_$TagDatabase, $ArtTagIllustrationsTable> {
+  $$ArtTagIllustrationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtTagIllustrationsTableOrderingComposer
+    extends Composer<_$TagDatabase, $ArtTagIllustrationsTable> {
+  $$ArtTagIllustrationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtTagIllustrationsTableAnnotationComposer
+    extends Composer<_$TagDatabase, $ArtTagIllustrationsTable> {
+  $$ArtTagIllustrationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get tagId =>
+      $composableBuilder(column: $table.tagId, builder: (column) => column);
+
+  GeneratedColumn<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => column,
+  );
+}
+
+class $$ArtTagIllustrationsTableTableManager
+    extends
+        RootTableManager<
+          _$TagDatabase,
+          $ArtTagIllustrationsTable,
+          ArtTagIllustration,
+          $$ArtTagIllustrationsTableFilterComposer,
+          $$ArtTagIllustrationsTableOrderingComposer,
+          $$ArtTagIllustrationsTableAnnotationComposer,
+          $$ArtTagIllustrationsTableCreateCompanionBuilder,
+          $$ArtTagIllustrationsTableUpdateCompanionBuilder,
+          (
+            ArtTagIllustration,
+            BaseReferences<
+              _$TagDatabase,
+              $ArtTagIllustrationsTable,
+              ArtTagIllustration
+            >,
+          ),
+          ArtTagIllustration,
+          PrefetchHooks Function()
+        > {
+  $$ArtTagIllustrationsTableTableManager(
+    _$TagDatabase db,
+    $ArtTagIllustrationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtTagIllustrationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtTagIllustrationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ArtTagIllustrationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> tagId = const Value.absent(),
+                Value<String> illustrationId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagIllustrationsCompanion(
+                tagId: tagId,
+                illustrationId: illustrationId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String tagId,
+                required String illustrationId,
+                Value<int> rowid = const Value.absent(),
+              }) => ArtTagIllustrationsCompanion.insert(
+                tagId: tagId,
+                illustrationId: illustrationId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtTagIllustrationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$TagDatabase,
+      $ArtTagIllustrationsTable,
+      ArtTagIllustration,
+      $$ArtTagIllustrationsTableFilterComposer,
+      $$ArtTagIllustrationsTableOrderingComposer,
+      $$ArtTagIllustrationsTableAnnotationComposer,
+      $$ArtTagIllustrationsTableCreateCompanionBuilder,
+      $$ArtTagIllustrationsTableUpdateCompanionBuilder,
+      (
+        ArtTagIllustration,
+        BaseReferences<
+          _$TagDatabase,
+          $ArtTagIllustrationsTable,
+          ArtTagIllustration
+        >,
+      ),
+      ArtTagIllustration,
+      PrefetchHooks Function()
+    >;
 typedef $$TagPackMetaTableCreateCompanionBuilder =
     TagPackMetaCompanion Function({
       required String key,
@@ -1912,6 +3503,14 @@ class $TagDatabaseManager {
       $$TagEdgesTableTableManager(_db, _db.tagEdges);
   $$TagCardsTableTableManager get tagCards =>
       $$TagCardsTableTableManager(_db, _db.tagCards);
+  $$ArtTagsTableTableManager get artTags =>
+      $$ArtTagsTableTableManager(_db, _db.artTags);
+  $$ArtTagAliasesTableTableManager get artTagAliases =>
+      $$ArtTagAliasesTableTableManager(_db, _db.artTagAliases);
+  $$ArtTagEdgesTableTableManager get artTagEdges =>
+      $$ArtTagEdgesTableTableManager(_db, _db.artTagEdges);
+  $$ArtTagIllustrationsTableTableManager get artTagIllustrations =>
+      $$ArtTagIllustrationsTableTableManager(_db, _db.artTagIllustrations);
   $$TagPackMetaTableTableManager get tagPackMeta =>
       $$TagPackMetaTableTableManager(_db, _db.tagPackMeta);
 }

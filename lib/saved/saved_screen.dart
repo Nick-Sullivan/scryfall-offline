@@ -37,23 +37,32 @@ class SavedScreen extends ConsumerWidget {
                 ),
               ),
             )
+          // Removing a card re-runs the summaries query. Keep showing the
+          // previous results meanwhile (minus anything just removed) so the
+          // grid stays mounted and keeps its scroll position.
           : cards.when(
+              skipLoadingOnReload: true,
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Failed to load: $e')),
-              data: (items) => GridView.builder(
-                padding: const EdgeInsets.all(8),
-                gridDelegate: cardGridDelegate(columns),
-                itemCount: items.length,
-                itemBuilder: (context, i) {
-                  final card = items[i];
-                  return CardTile(
-                    card: card,
-                    onRemove: () => ref
-                        .read(savedCardsProvider.notifier)
-                        .remove(card.oracleId),
-                  );
-                },
-              ),
+              data: (items) {
+                final visible =
+                    items.where((c) => ids.contains(c.oracleId)).toList();
+                return GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: cardGridDelegate(columns),
+                  itemCount: visible.length,
+                  itemBuilder: (context, i) {
+                    final card = visible[i];
+                    return CardTile(
+                      key: ValueKey(card.oracleId),
+                      card: card,
+                      onRemove: () => ref
+                          .read(savedCardsProvider.notifier)
+                          .remove(card.oracleId),
+                    );
+                  },
+                );
+              },
             ),
     );
   }

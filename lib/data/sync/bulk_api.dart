@@ -51,10 +51,16 @@ class BulkApi {
     );
   }
 
-  /// The `oracle_tags` bulk file (community Tagger data). Separate from
-  /// [fetchIndex] so the card-sync path never depends on this entry existing.
-  Future<BulkFileInfo> fetchOracleTagsInfo() async =>
-      _parseEntry(await _fetchEntries(), 'oracle_tags');
+  /// The `oracle_tags` and `art_tags` bulk files (community Tagger data),
+  /// from one index fetch — the tag pack installs them together. Separate
+  /// from [fetchIndex] so the card-sync path never depends on these entries.
+  Future<({BulkFileInfo oracle, BulkFileInfo art})> fetchTagsInfo() async {
+    final entries = await _fetchEntries();
+    return (
+      oracle: _parseEntry(entries, 'oracle_tags'),
+      art: _parseEntry(entries, 'art_tags'),
+    );
+  }
 
   Future<List> _fetchEntries() async {
     final resp = await client.get(

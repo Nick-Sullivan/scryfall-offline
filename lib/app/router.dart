@@ -12,9 +12,9 @@ import '../sync_ui/update_screen.dart';
 import 'providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final hasData = ValueNotifier(ref.read(databaseProvider) != null);
+  final hasData = ValueNotifier(ref.read(hasCardDataProvider));
   ref
-    ..listen(databaseProvider, (_, db) => hasData.value = db != null)
+    ..listen(hasCardDataProvider, (_, has) => hasData.value = has)
     ..onDispose(hasData.dispose);
 
   return GoRouter(

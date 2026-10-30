@@ -65,12 +65,16 @@ class FilterForm extends ConsumerStatefulWidget {
   /// filter sheet leaves this false and lets the form scroll itself.
   final bool embedded;
 
+  /// Sections switched off in settings, left out of the form.
+  final Set<FilterSection> hidden;
+
   const FilterForm({
     super.key,
     required this.value,
     required this.onChanged,
     this.header = const [],
     this.embedded = false,
+    this.hidden = const {},
   });
 
   @override
@@ -128,11 +132,18 @@ class _FilterFormState extends ConsumerState<FilterForm> {
   Widget build(BuildContext context) {
     final sets = ref.watch(allSetsProvider).valueOrNull ?? const [];
     final types = ref.watch(allTypesProvider).valueOrNull ?? const <String>[];
-    // Empty means the optional tag pack isn't installed, which hides the
-    // section entirely.
+    // Empty means the optional tag pack isn't installed (or, for art tags,
+    // predates them), which hides that section entirely.
     final tags = ref.watch(allTagsProvider).valueOrNull ??
         const <(String, String)>[];
+    final artTags = ref.watch(allArtTagsProvider).valueOrNull ??
+        const <(String, String)>[];
 
+    // Switching a section off in settings also clears it, so nothing hidden
+    // here can be affecting the search.
+    bool show(FilterSection s) => !widget.hidden.contains(s);
+
+    // Each section brings its own top gap, so hiding one leaves no hole.
     return ListView(
       shrinkWrap: widget.embedded,
       physics:
@@ -142,60 +153,54 @@ class _FilterFormState extends ConsumerState<FilterForm> {
           : const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
         ...widget.header,
-        TextField(
-          controller: _name,
-          onChanged: (_) => _onTextChanged(),
-          decoration: const InputDecoration(
-            labelText: 'Card name contains',
-            hintText: 'bolt, dragon …',
-          ),
-        ),
-        const SizedBox(height: 8),
-        _label('Types'),
-        _ChipPicker<String>(
-          suggest: (q) => types
-              .where((ty) =>
-                  ty.toLowerCase().contains(q) && !_draft.types.contains(ty))
-              .take(20),
-          display: (ty) => ty,
-          label: 'Add a type',
-          hint: 'creature, legendary, elf …',
-          onAdd: (t) => _apply(_draft.copyWith(types: {..._draft.types, t})),
-        ),
-        if (_draft.types.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final t in _draft.types)
-                  InputChip(
-                    label: Text(t),
-                    onDeleted: () => _apply(
-                        _draft.copyWith(types: {..._draft.types}..remove(t))),
-                  ),
-              ],
+        if (show(FilterSection.name))
+          TextField(
+            controller: _name,
+            onChanged: (_) => _onTextChanged(),
+            decoration: const InputDecoration(
+              labelText: 'Card name contains',
+              hintText: 'bolt, dragon …',
             ),
           ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _text,
-          onChanged: (_) => _onTextChanged(),
-          decoration: const InputDecoration(
-            labelText: 'Rules text contains',
-            hintText: 'trample hexproof  ·  "enters tapped"',
-            helperText: 'Words match separately; use "quotes" for a phrase',
+        if (show(FilterSection.types)) ...[
+          const SizedBox(height: 8),
+          _label('Types'),
+          _ChipPicker<String>(
+            suggest: (q) => types
+                .where((ty) =>
+                    ty.toLowerCase().contains(q) && !_draft.types.contains(ty))
+                .take(20),
+            display: (ty) => ty,
+            label: 'Add a type',
+            hint: 'creature, legendary, elf …',
+            onAdd: (t) => _apply(_draft.copyWith(types: {..._draft.types, t})),
           ),
-        ),
-        // Selected tags keep the section alive even without the pack, so a
+          if (_draft.types.isNotEmpty)
+            _chips({for (final t in _draft.types) t: t},
+                (t) => _apply(
+                    _draft.copyWith(types: {..._draft.types}..remove(t)))),
+        ],
+        if (show(FilterSection.rulesText)) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _text,
+            onChanged: (_) => _onTextChanged(),
+            decoration: const InputDecoration(
+              labelText: 'Rules text contains',
+              hintText: 'trample hexproof  ·  "enters tapped"',
+              helperText: 'Words match separately; use "quotes" for a phrase',
+            ),
+          ),
+        ],
+        // Selected tags keep their section alive even without the pack, so a
         // saved filter's chips stay removable after deleting the tag data —
-        // otherwise they'd keep emitting otag: terms the compiler rejects.
-        if (tags.isNotEmpty || _draft.otags.isNotEmpty) ...[
+        // otherwise they'd keep emitting terms the compiler rejects.
+        if ((tags.isNotEmpty || _draft.otags.isNotEmpty) &&
+            show(FilterSection.oracleTags)) ...[
           const SizedBox(height: 16),
           _label('Oracle tags'),
           _ChipPicker<(String, String)>(
-            suggest: (q) => rankOracleTags(tags, q, _draft.otags.keys.toSet()),
+            suggest: (q) => rankTags(tags, q, _draft.otags.keys.toSet()),
             display: (t) => t.$2,
             label: 'Add a tag',
             hint: 'removal, ramp, card draw …',
@@ -203,165 +208,229 @@ class _FilterFormState extends ConsumerState<FilterForm> {
                 _apply(_draft.copyWith(otags: {..._draft.otags, t.$1: t.$2})),
           ),
           if (_draft.otags.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  for (final e in _draft.otags.entries)
-                    InputChip(
-                      label: Text(e.value),
-                      onDeleted: () => _apply(_draft.copyWith(
-                          otags: {..._draft.otags}..remove(e.key))),
-                    ),
-                ],
-              ),
-            ),
+            _chips(
+                _draft.otags,
+                (slug) => _apply(_draft.copyWith(
+                    otags: {..._draft.otags}..remove(slug)))),
         ],
-        const SizedBox(height: 16),
-        _label('Colors'),
-        Wrap(
-          spacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (final c in _manaOptions)
-              _ManaDot(
-                letter: c,
-                selected: _draft.colors.contains(c),
-                onTap: () => _apply(
-                    _draft.copyWith(colors: _toggleColor(_draft.colors, c))),
+        if ((artTags.isNotEmpty || _draft.atags.isNotEmpty) &&
+            show(FilterSection.artTags)) ...[
+          const SizedBox(height: 16),
+          _label('Art tags'),
+          _ChipPicker<(String, String)>(
+            suggest: (q) => rankTags(artTags, q, _draft.atags.keys.toSet()),
+            display: (t) => t.$2,
+            label: 'Add an art tag',
+            hint: 'dragon, forest, sunset …',
+            onAdd: (t) =>
+                _apply(_draft.copyWith(atags: {..._draft.atags, t.$1: t.$2})),
+          ),
+          if (_draft.atags.isNotEmpty)
+            _chips(
+                _draft.atags,
+                (slug) => _apply(_draft.copyWith(
+                    atags: {..._draft.atags}..remove(slug)))),
+        ],
+        if (show(FilterSection.colors)) ...[
+          const SizedBox(height: 16),
+          _label('Colors'),
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final c in _manaOptions)
+                _ManaDot(
+                  letter: c,
+                  selected: _draft.colors.contains(c),
+                  onTap: () => _apply(
+                      _draft.copyWith(colors: _toggleColor(_draft.colors, c))),
+                ),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: _draft.colorMode,
+                items: const [
+                  DropdownMenuItem(value: ':', child: Text('including')),
+                  DropdownMenuItem(value: '=', child: Text('exactly')),
+                  DropdownMenuItem(value: '<=', child: Text('at most')),
+                ],
+                onChanged: (v) => _apply(_draft.copyWith(colorMode: v ?? ':')),
               ),
-            const SizedBox(width: 8),
-            DropdownButton<String>(
-              value: _draft.colorMode,
-              items: const [
-                DropdownMenuItem(value: ':', child: Text('including')),
-                DropdownMenuItem(value: '=', child: Text('exactly')),
-                DropdownMenuItem(value: '<=', child: Text('at most')),
-              ],
-              onChanged: (v) => _apply(_draft.copyWith(colorMode: v ?? ':')),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _label('Commander identity (at most)'),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final c in _manaOptions)
-              _ManaDot(
-                letter: c,
-                selected: _draft.identity.contains(c),
-                onTap: () => _apply(_draft.copyWith(
-                    identity: _toggleColor(_draft.identity, c))),
+            ],
+          ),
+        ],
+        if (show(FilterSection.identity)) ...[
+          const SizedBox(height: 16),
+          _label('Commander identity (at most)'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final c in _manaOptions)
+                _ManaDot(
+                  letter: c,
+                  selected: _draft.identity.contains(c),
+                  onTap: () => _apply(_draft.copyWith(
+                      identity: _toggleColor(_draft.identity, c))),
+                ),
+            ],
+          ),
+        ],
+        if (show(FilterSection.manaValue))
+          ..._rangeSlider('Mana value', _draft.mv, FilterState.mvMax,
+              (v, {required commit}) => _setRange(_draft.copyWith(mv: v), commit)),
+        if (show(FilterSection.power))
+          ..._rangeSlider('Power', _draft.pow, FilterState.statMax,
+              (v, {required commit}) => _setRange(_draft.copyWith(pow: v), commit)),
+        if (show(FilterSection.toughness))
+          ..._rangeSlider('Toughness', _draft.tou, FilterState.statMax,
+              (v, {required commit}) => _setRange(_draft.copyWith(tou: v), commit)),
+        if (show(FilterSection.format)) ...[
+          const SizedBox(height: 8),
+          _label('Format'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final f in const [
+                'standard', 'pioneer', 'modern', 'legacy', 'vintage',
+                'pauper', 'commander'
+              ])
+                ChoiceChip(
+                  label: Text(f),
+                  selected: _draft.format == f,
+                  onSelected: (sel) => _apply(sel
+                      ? _draft.copyWith(format: f)
+                      : _draft.copyWith(clearFormat: true)),
+                ),
+            ],
+          ),
+        ],
+        if (show(FilterSection.rarity)) ...[
+          const SizedBox(height: 16),
+          _label('Rarity'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final r in _rarityOptions)
+                FilterChip(
+                  label: Text(r),
+                  selected: _draft.rarities.contains(r),
+                  onSelected: (sel) => _apply(_draft.copyWith(
+                      rarities: _toggle(_draft.rarities, r, sel))),
+                ),
+            ],
+          ),
+        ],
+        if (show(FilterSection.set)) ...[
+          const SizedBox(height: 16),
+          _label('Set'),
+          Autocomplete<(String, String)>(
+            initialValue: TextEditingValue(text: _draft.setLabel ?? ''),
+            displayStringForOption: (s) => '${s.$2} (${s.$1})',
+            optionsBuilder: (t) {
+              final q = t.text.toLowerCase();
+              if (q.isEmpty) return const Iterable.empty();
+              return sets.where(
+                  (s) => s.$1.contains(q) || s.$2.toLowerCase().contains(q));
+            },
+            onSelected: (s) => _apply(
+                _draft.copyWith(setCode: s.$1, setLabel: '${s.$2} (${s.$1})')),
+            fieldViewBuilder: (context, controller, focus, onSubmit) =>
+                TextField(
+              controller: controller,
+              focusNode: focus,
+              decoration: InputDecoration(
+                labelText: 'Set name or code',
+                suffixIcon: _draft.setCode == null
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          controller.clear();
+                          _apply(_draft.copyWith(clearSet: true));
+                        },
+                      ),
               ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _label('Mana value  ${_draft.mv.start.round()} – '
-            '${_draft.mv.end.round() == 16 ? '∞' : _draft.mv.end.round()}'),
-        RangeSlider(
-          values: _draft.mv,
-          min: 0,
-          max: 16,
-          divisions: 16,
-          // No value-indicator boxes — the label line above updates live.
-          onChanged: (v) => setState(() => _draft = _draft.copyWith(mv: v)),
-          onChangeEnd: (v) => _apply(_draft.copyWith(mv: v)),
-        ),
-        const SizedBox(height: 8),
-        _label('Format'),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final f in const [
-              'standard', 'pioneer', 'modern', 'legacy', 'vintage',
-              'pauper', 'commander'
-            ])
-              ChoiceChip(
-                label: Text(f),
-                selected: _draft.format == f,
-                onSelected: (sel) => _apply(sel
-                    ? _draft.copyWith(format: f)
-                    : _draft.copyWith(clearFormat: true)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _label('Rarity'),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final r in _rarityOptions)
-              FilterChip(
-                label: Text(r),
-                selected: _draft.rarities.contains(r),
-                onSelected: (sel) => _apply(_draft.copyWith(
-                    rarities: _toggle(_draft.rarities, r, sel))),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _label('Set'),
-        Autocomplete<(String, String)>(
-          initialValue: TextEditingValue(text: _draft.setLabel ?? ''),
-          displayStringForOption: (s) => '${s.$2} (${s.$1})',
-          optionsBuilder: (t) {
-            final q = t.text.toLowerCase();
-            if (q.isEmpty) return const Iterable.empty();
-            return sets.where(
-                (s) => s.$1.contains(q) || s.$2.toLowerCase().contains(q));
-          },
-          onSelected: (s) => _apply(
-              _draft.copyWith(setCode: s.$1, setLabel: '${s.$2} (${s.$1})')),
-          fieldViewBuilder: (context, controller, focus, onSubmit) => TextField(
-            controller: controller,
-            focusNode: focus,
-            decoration: InputDecoration(
-              labelText: 'Set name or code',
-              suffixIcon: _draft.setCode == null
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        controller.clear();
-                        _apply(_draft.copyWith(clearSet: true));
-                      },
-                    ),
             ),
           ),
-        ),
-        const Divider(height: 32),
-        _label('Sort by'),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final e in _sortLabels.entries)
-              ChoiceChip(
-                label: Text(e.value),
-                selected: _draft.sort == e.key,
-                onSelected: (_) => _apply(_draft.copyWith(sort: e.key)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SegmentedButton<bool>(
-          // 'Descending' is wider than 'Ascending', and the check icon lands
-          // on whichever is selected — without this the control jumps width
-          // every time the direction changes.
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: true, label: Text('Ascending')),
-            ButtonSegment(value: false, label: Text('Descending')),
-          ],
-          selected: {_draft.sortAscending},
-          onSelectionChanged: (s) =>
-              _apply(_draft.copyWith(sortAscending: s.first)),
-        ),
+        ],
+        if (show(FilterSection.sort)) ...[
+          const Divider(height: 32),
+          _label('Sort by'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final e in _sortLabels.entries)
+                ChoiceChip(
+                  label: Text(e.value),
+                  selected: _draft.sort == e.key,
+                  onSelected: (_) => _apply(_draft.copyWith(sort: e.key)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            // 'Descending' is wider than 'Ascending', and the check icon lands
+            // on whichever is selected — without this the control jumps width
+            // every time the direction changes.
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: true, label: Text('Ascending')),
+              ButtonSegment(value: false, label: Text('Descending')),
+            ],
+            selected: {_draft.sortAscending},
+            onSelectionChanged: (s) =>
+                _apply(_draft.copyWith(sortAscending: s.first)),
+          ),
+        ],
       ],
     );
   }
+
+  /// Slider drags update the draft locally; only the release commits.
+  void _setRange(FilterState next, bool commit) =>
+      commit ? _apply(next) : setState(() => _draft = next);
+
+  /// A labelled 0–[max] range slider whose top stop reads as "∞" (no upper
+  /// bound). [onChanged] gets `commit: false` while dragging and `true` on
+  /// release, so a drag doesn't re-run the search at every step.
+  List<Widget> _rangeSlider(
+    String label,
+    RangeValues values,
+    double max,
+    void Function(RangeValues, {required bool commit}) onChanged,
+  ) {
+    final end = values.end.round();
+    return [
+      const SizedBox(height: 16),
+      _label('$label  ${values.start.round()} – '
+          '${end == max.round() ? '∞' : end}'),
+      RangeSlider(
+        values: values,
+        min: 0,
+        max: max,
+        divisions: max.round(),
+        // No value-indicator boxes — the label line above updates live.
+        onChanged: (v) => onChanged(v, commit: false),
+        onChangeEnd: (v) => onChanged(v, commit: true),
+      ),
+    ];
+  }
+
+  /// Removable chips for a selection, keyed by what [onDeleted] receives.
+  Widget _chips(Map<String, String> items, ValueChanged<String> onDeleted) =>
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final e in items.entries)
+              InputChip(
+                label: Text(e.value),
+                onDeleted: () => onDeleted(e.key),
+              ),
+          ],
+        ),
+      );
 
   Set<String> _toggle(Set<String> set, String value, bool add) {
     final next = {...set};
@@ -385,12 +454,12 @@ class _FilterFormState extends ConsumerState<FilterForm> {
       );
 }
 
-/// Oracle tags matching [query] on label or slug, best match first. Straight
-/// alphabetical order buries the tag you asked for — "removal" sorts behind
-/// cycle-snc-r-shard-removal and friends — so exact matches lead, then
-/// prefixes, then anything else containing the query.
+/// Tags (oracle or art) matching [query] on label or slug, best match
+/// first. Straight alphabetical order buries the tag you asked for —
+/// "removal" sorts behind cycle-snc-r-shard-removal and friends — so exact
+/// matches lead, then prefixes, then anything else containing the query.
 @visibleForTesting
-List<(String, String)> rankOracleTags(
+List<(String, String)> rankTags(
   List<(String, String)> tags,
   String query,
   Set<String> exclude,

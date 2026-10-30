@@ -2782,6 +2782,280 @@ class PrintsCompanion extends UpdateCompanion<Print> {
   }
 }
 
+class $PrintArtTable extends PrintArt
+    with TableInfo<$PrintArtTable, PrintArtData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrintArtTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _illustrationIdMeta = const VerificationMeta(
+    'illustrationId',
+  );
+  @override
+  late final GeneratedColumn<String> illustrationId = GeneratedColumn<String>(
+    'illustration_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _printIdMeta = const VerificationMeta(
+    'printId',
+  );
+  @override
+  late final GeneratedColumn<String> printId = GeneratedColumn<String>(
+    'print_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oracleIdMeta = const VerificationMeta(
+    'oracleId',
+  );
+  @override
+  late final GeneratedColumn<String> oracleId = GeneratedColumn<String>(
+    'oracle_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [illustrationId, printId, oracleId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'print_art';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PrintArtData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('illustration_id')) {
+      context.handle(
+        _illustrationIdMeta,
+        illustrationId.isAcceptableOrUnknown(
+          data['illustration_id']!,
+          _illustrationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_illustrationIdMeta);
+    }
+    if (data.containsKey('print_id')) {
+      context.handle(
+        _printIdMeta,
+        printId.isAcceptableOrUnknown(data['print_id']!, _printIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_printIdMeta);
+    }
+    if (data.containsKey('oracle_id')) {
+      context.handle(
+        _oracleIdMeta,
+        oracleId.isAcceptableOrUnknown(data['oracle_id']!, _oracleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oracleIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {printId, illustrationId};
+  @override
+  PrintArtData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrintArtData(
+      illustrationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}illustration_id'],
+      )!,
+      printId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}print_id'],
+      )!,
+      oracleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}oracle_id'],
+      )!,
+    );
+  }
+
+  @override
+  $PrintArtTable createAlias(String alias) {
+    return $PrintArtTable(attachedDatabase, alias);
+  }
+}
+
+class PrintArtData extends DataClass implements Insertable<PrintArtData> {
+  final String illustrationId;
+  final String printId;
+  final String oracleId;
+  const PrintArtData({
+    required this.illustrationId,
+    required this.printId,
+    required this.oracleId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['illustration_id'] = Variable<String>(illustrationId);
+    map['print_id'] = Variable<String>(printId);
+    map['oracle_id'] = Variable<String>(oracleId);
+    return map;
+  }
+
+  PrintArtCompanion toCompanion(bool nullToAbsent) {
+    return PrintArtCompanion(
+      illustrationId: Value(illustrationId),
+      printId: Value(printId),
+      oracleId: Value(oracleId),
+    );
+  }
+
+  factory PrintArtData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrintArtData(
+      illustrationId: serializer.fromJson<String>(json['illustrationId']),
+      printId: serializer.fromJson<String>(json['printId']),
+      oracleId: serializer.fromJson<String>(json['oracleId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'illustrationId': serializer.toJson<String>(illustrationId),
+      'printId': serializer.toJson<String>(printId),
+      'oracleId': serializer.toJson<String>(oracleId),
+    };
+  }
+
+  PrintArtData copyWith({
+    String? illustrationId,
+    String? printId,
+    String? oracleId,
+  }) => PrintArtData(
+    illustrationId: illustrationId ?? this.illustrationId,
+    printId: printId ?? this.printId,
+    oracleId: oracleId ?? this.oracleId,
+  );
+  PrintArtData copyWithCompanion(PrintArtCompanion data) {
+    return PrintArtData(
+      illustrationId: data.illustrationId.present
+          ? data.illustrationId.value
+          : this.illustrationId,
+      printId: data.printId.present ? data.printId.value : this.printId,
+      oracleId: data.oracleId.present ? data.oracleId.value : this.oracleId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrintArtData(')
+          ..write('illustrationId: $illustrationId, ')
+          ..write('printId: $printId, ')
+          ..write('oracleId: $oracleId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(illustrationId, printId, oracleId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrintArtData &&
+          other.illustrationId == this.illustrationId &&
+          other.printId == this.printId &&
+          other.oracleId == this.oracleId);
+}
+
+class PrintArtCompanion extends UpdateCompanion<PrintArtData> {
+  final Value<String> illustrationId;
+  final Value<String> printId;
+  final Value<String> oracleId;
+  final Value<int> rowid;
+  const PrintArtCompanion({
+    this.illustrationId = const Value.absent(),
+    this.printId = const Value.absent(),
+    this.oracleId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrintArtCompanion.insert({
+    required String illustrationId,
+    required String printId,
+    required String oracleId,
+    this.rowid = const Value.absent(),
+  }) : illustrationId = Value(illustrationId),
+       printId = Value(printId),
+       oracleId = Value(oracleId);
+  static Insertable<PrintArtData> custom({
+    Expression<String>? illustrationId,
+    Expression<String>? printId,
+    Expression<String>? oracleId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (illustrationId != null) 'illustration_id': illustrationId,
+      if (printId != null) 'print_id': printId,
+      if (oracleId != null) 'oracle_id': oracleId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrintArtCompanion copyWith({
+    Value<String>? illustrationId,
+    Value<String>? printId,
+    Value<String>? oracleId,
+    Value<int>? rowid,
+  }) {
+    return PrintArtCompanion(
+      illustrationId: illustrationId ?? this.illustrationId,
+      printId: printId ?? this.printId,
+      oracleId: oracleId ?? this.oracleId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (illustrationId.present) {
+      map['illustration_id'] = Variable<String>(illustrationId.value);
+    }
+    if (printId.present) {
+      map['print_id'] = Variable<String>(printId.value);
+    }
+    if (oracleId.present) {
+      map['oracle_id'] = Variable<String>(oracleId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrintArtCompanion(')
+          ..write('illustrationId: $illustrationId, ')
+          ..write('printId: $printId, ')
+          ..write('oracleId: $oracleId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $RulingsTable extends Rulings with TableInfo<$RulingsTable, Ruling> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -3263,6 +3537,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CardsTable cards = $CardsTable(this);
   late final $FacesTable faces = $FacesTable(this);
   late final $PrintsTable prints = $PrintsTable(this);
+  late final $PrintArtTable printArt = $PrintArtTable(this);
   late final $RulingsTable rulings = $RulingsTable(this);
   late final $MetaTable meta = $MetaTable(this);
   @override
@@ -3273,6 +3548,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     cards,
     faces,
     prints,
+    printArt,
     rulings,
     meta,
   ];
@@ -4528,6 +4804,170 @@ typedef $$PrintsTableProcessedTableManager =
       Print,
       PrefetchHooks Function()
     >;
+typedef $$PrintArtTableCreateCompanionBuilder =
+    PrintArtCompanion Function({
+      required String illustrationId,
+      required String printId,
+      required String oracleId,
+      Value<int> rowid,
+    });
+typedef $$PrintArtTableUpdateCompanionBuilder =
+    PrintArtCompanion Function({
+      Value<String> illustrationId,
+      Value<String> printId,
+      Value<String> oracleId,
+      Value<int> rowid,
+    });
+
+class $$PrintArtTableFilterComposer
+    extends Composer<_$AppDatabase, $PrintArtTable> {
+  $$PrintArtTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get printId => $composableBuilder(
+    column: $table.printId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PrintArtTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrintArtTable> {
+  $$PrintArtTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get printId => $composableBuilder(
+    column: $table.printId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PrintArtTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrintArtTable> {
+  $$PrintArtTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get illustrationId => $composableBuilder(
+    column: $table.illustrationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get printId =>
+      $composableBuilder(column: $table.printId, builder: (column) => column);
+
+  GeneratedColumn<String> get oracleId =>
+      $composableBuilder(column: $table.oracleId, builder: (column) => column);
+}
+
+class $$PrintArtTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PrintArtTable,
+          PrintArtData,
+          $$PrintArtTableFilterComposer,
+          $$PrintArtTableOrderingComposer,
+          $$PrintArtTableAnnotationComposer,
+          $$PrintArtTableCreateCompanionBuilder,
+          $$PrintArtTableUpdateCompanionBuilder,
+          (
+            PrintArtData,
+            BaseReferences<_$AppDatabase, $PrintArtTable, PrintArtData>,
+          ),
+          PrintArtData,
+          PrefetchHooks Function()
+        > {
+  $$PrintArtTableTableManager(_$AppDatabase db, $PrintArtTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrintArtTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrintArtTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrintArtTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> illustrationId = const Value.absent(),
+                Value<String> printId = const Value.absent(),
+                Value<String> oracleId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrintArtCompanion(
+                illustrationId: illustrationId,
+                printId: printId,
+                oracleId: oracleId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String illustrationId,
+                required String printId,
+                required String oracleId,
+                Value<int> rowid = const Value.absent(),
+              }) => PrintArtCompanion.insert(
+                illustrationId: illustrationId,
+                printId: printId,
+                oracleId: oracleId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PrintArtTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PrintArtTable,
+      PrintArtData,
+      $$PrintArtTableFilterComposer,
+      $$PrintArtTableOrderingComposer,
+      $$PrintArtTableAnnotationComposer,
+      $$PrintArtTableCreateCompanionBuilder,
+      $$PrintArtTableUpdateCompanionBuilder,
+      (
+        PrintArtData,
+        BaseReferences<_$AppDatabase, $PrintArtTable, PrintArtData>,
+      ),
+      PrintArtData,
+      PrefetchHooks Function()
+    >;
 typedef $$RulingsTableCreateCompanionBuilder =
     RulingsCompanion Function({
       required String oracleId,
@@ -4823,6 +5263,8 @@ class $AppDatabaseManager {
       $$FacesTableTableManager(_db, _db.faces);
   $$PrintsTableTableManager get prints =>
       $$PrintsTableTableManager(_db, _db.prints);
+  $$PrintArtTableTableManager get printArt =>
+      $$PrintArtTableTableManager(_db, _db.printArt);
   $$RulingsTableTableManager get rulings =>
       $$RulingsTableTableManager(_db, _db.rulings);
   $$MetaTableTableManager get meta => $$MetaTableTableManager(_db, _db.meta);

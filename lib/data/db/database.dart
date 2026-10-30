@@ -9,9 +9,10 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-const int schemaVersionValue = 1;
+/// 2: print_art (illustrations per print, for art tags).
+const int schemaVersionValue = 2;
 
-@DriftDatabase(tables: [Cards, Faces, Prints, Rulings, Meta])
+@DriftDatabase(tables: [Cards, Faces, Prints, PrintArt, Rulings, Meta])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -72,6 +73,12 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await createSearchArtifacts();
         },
+        onUpgrade: (m, from, to) async {
+          // Starts empty and fills on the next card-data update, which
+          // updateCheckProvider offers for databases built before v2.
+          if (from < 2) await m.createTable(printArt);
+          await createSearchArtifacts();
+        },
       );
 
   /// Indexes and external-content FTS5 tables (trigram tokenizer so that
@@ -84,6 +91,8 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_prints_oracle ON prints (oracle_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_prints_set ON prints (set_code)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_print_art_illustration '
+        'ON print_art (illustration_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_rulings_oracle ON rulings (oracle_id)');
     await customStatement(

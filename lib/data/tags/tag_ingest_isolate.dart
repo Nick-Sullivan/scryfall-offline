@@ -14,6 +14,8 @@ class TagIngestRequest {
   final String stagingDbPath;
   final String tagsPath;
   final bool tagsGzip;
+  final String artTagsPath;
+  final bool artTagsGzip;
   final String? bulkUpdatedAt;
 
   /// Desktop-only: sqlite library to load in this isolate (overrides are
@@ -25,6 +27,8 @@ class TagIngestRequest {
     required this.stagingDbPath,
     required this.tagsPath,
     required this.tagsGzip,
+    required this.artTagsPath,
+    required this.artTagsGzip,
     this.bulkUpdatedAt,
     this.sqliteOverridePath,
   });
@@ -40,7 +44,7 @@ Stream<Map<String, dynamic>> _decode(String path, bool isGzip) {
 }
 
 /// Isolate entry point: builds the staging tag database from the downloaded
-/// `oracle_tags` bulk file. Posts progress maps and finally {'type': 'done'}
+/// `oracle_tags` and `art_tags` bulk files. Posts progress maps and finally {'type': 'done'}
 /// / {'type': 'error'} on [TagIngestRequest.progressPort].
 Future<void> tagIngestIsolateMain(TagIngestRequest req) async {
   final port = req.progressPort;
@@ -60,6 +64,7 @@ Future<void> tagIngestIsolateMain(TagIngestRequest req) async {
     });
 
     await ingestor.ingestTags(_decode(req.tagsPath, req.tagsGzip));
+    await ingestor.ingestTags(_decode(req.artTagsPath, req.artTagsGzip));
     port.send({'type': 'finalizing'});
     await ingestor.finalize(bulkUpdatedAt: req.bulkUpdatedAt);
     await db.close();
@@ -68,6 +73,8 @@ Future<void> tagIngestIsolateMain(TagIngestRequest req) async {
       'type': 'done',
       'tags': ingestor.stats.tags,
       'taggings': ingestor.stats.taggings,
+      'artTags': ingestor.stats.artTags,
+      'artTaggings': ingestor.stats.artTaggings,
     });
   } catch (e, st) {
     try {

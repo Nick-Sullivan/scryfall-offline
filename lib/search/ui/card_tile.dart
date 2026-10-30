@@ -48,7 +48,7 @@ class CardTile extends ConsumerWidget {
     final local = ref.watch(imageStoreProvider).fileFor(card.oracleId);
     final url = card.imageNormal ?? card.imageSmall;
     final Widget image;
-    if (local.existsSync()) {
+    if (card.isPreferredPrint && local.existsSync()) {
       image = Image.file(
         local,
         fit: BoxFit.cover,
@@ -81,7 +81,11 @@ class CardTile extends ConsumerWidget {
       children: [
         Positioned.fill(
           child: InkWell(
-            onTap: () => context.push('/card/${card.oracleId}'),
+            // Opens on the print the tile shows (an atag: match may not be
+            // the preferred one).
+            onTap: () => context.push(card.printId == null
+                ? '/card/${card.oracleId}'
+                : '/card/${card.oracleId}?print=${card.printId}'),
             onLongPress: () => _toggleSaved(context, ref),
             borderRadius: BorderRadius.circular(9),
             child: ClipRRect(

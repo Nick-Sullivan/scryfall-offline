@@ -76,14 +76,6 @@ class UpdateScreen extends ConsumerWidget {
               ),
             ],
           ],
-          const SizedBox(height: 8),
-          const Text(
-            'The app checks whether new cards have been released; Scryfall\'s '
-            'price-only data refreshes are ignored. Already-downloaded card '
-            'images are kept — only art for new cards is fetched. Search '
-            'keeps working while an update downloads.',
-            style: TextStyle(fontSize: 12),
-          ),
           const Divider(height: 40),
           const _ImagePackSection(),
           const Divider(height: 40),
@@ -232,10 +224,7 @@ class _ImagePackSection extends ConsumerWidget {
         ],
         const SizedBox(height: 8),
         const Text(
-          'Stores one image per card so search results and card pages work '
-          'fully offline. ~3.3 GB, can take a few '
-          'hours; you can stop and resume any time — already-downloaded '
-          'images are kept.',
+          'For fully offline browsing. ~3.3 GB; stop and resume any time.',
           style: TextStyle(fontSize: 12),
         ),
       ],
@@ -261,7 +250,7 @@ class _TagPackSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Oracle tags',
+          'Tags',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
@@ -270,12 +259,17 @@ class _TagPackSection extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(progress.label),
         ] else ...[
-          Text(
-            status == null
-                ? 'Not downloaded.'
-                : '${status.tags} tags covering ${status.taggings} cards, '
-                    'downloaded ${friendlyDate(status.fetchedAt)}.',
-          ),
+          Text(switch (status) {
+            null => 'Not downloaded.',
+            final s => '${s.tags} oracle tags'
+                '${s.artTags == null ? '' : ' and ${s.artTags} art tags'}, '
+                'downloaded ${friendlyDate(s.fetchedAt)}.',
+          }),
+          // Packs from before art tags have no art tables at all.
+          if (status != null && status.artTags == null) ...[
+            const SizedBox(height: 4),
+            const Text('Re-download to add art tags.'),
+          ],
           if (progress?.error != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -291,7 +285,7 @@ class _TagPackSection extends ConsumerWidget {
                 onPressed: () => ref.read(tagPackProvider.notifier).start(),
                 icon: const Icon(Icons.sell_outlined),
                 label: Text(status == null
-                    ? 'Download tag data (~18 MB)'
+                    ? 'Download tag data (~20 MB)'
                     : 'Re-download'),
               ),
               const SizedBox(width: 8),
@@ -309,10 +303,8 @@ class _TagPackSection extends ConsumerWidget {
         ],
         const SizedBox(height: 8),
         const Text(
-          'Enables otag: / function: searches using community oracle tags '
-          'from Scryfall Tagger (e.g. otag:removal). Kept when card data '
-          'updates and never refreshed automatically — tap Re-download any '
-          'time for the latest tags.',
+          'Community tags for what a card does (otag:removal) and what its '
+          'art shows (atag:dragon).',
           style: TextStyle(fontSize: 12),
         ),
         TextButton.icon(

@@ -14,7 +14,15 @@ class CompiledQuery {
   final List<Object?> params;
   final String orderBy;
 
-  const CompiledQuery(this.where, this.params, this.orderBy);
+  /// Optional scalar subquery picking which print a result tile shows, for
+  /// queries about specific printings (`atag:` — the art shown must be the
+  /// tagged one). Null means the card's preferred print. Its params
+  /// ([displayParams]) are separate because it lands before WHERE in SQL.
+  final String? displayPrint;
+  final List<Object?> displayParams;
+
+  const CompiledQuery(this.where, this.params, this.orderBy,
+      {this.displayPrint, this.displayParams = const []});
 
   String selectSql({required int limit, required int offset}) =>
       'SELECT * FROM cards WHERE $where ORDER BY $orderBy '
@@ -28,19 +36,52 @@ class SqlCompiler {
   String? _orderField;
   bool? _orderAsc;
 
-  /// Whether the optional oracle-tag pack (tags.db, attached as `tagdb`) is
+  /// Print-level art conditions (over alias `dp`) that every result must
+  /// satisfy, collected for [CompiledQuery.displayPrint]. Only terms reached
+  /// through plain ANDs count: under NOT or OR a card can match without that
+  /// art, and its tile falls back to the preferred print.
+  final List<String> _displayConds = [];
+  final List<Object?> _displayParams = [];
+  bool _conjunctive = true;
+
+  /// Whether the optional tag pack (tags.db, attached as `tagdb`) is
   /// installed; `otag:` predicates throw a directions error without it.
   final bool tagsInstalled;
 
-  SqlCompiler({this.tagsInstalled = true});
+  /// Whether that pack includes art tags (packs from before art tags don't).
+  final bool artTagsInstalled;
 
-  static CompiledQuery compile(QueryNode root, {bool tagsInstalled = true}) =>
-      SqlCompiler(tagsInstalled: tagsInstalled)._run(root);
+  /// Whether the card database records illustrations per print (print_art,
+  /// schema v2) — older databases need a card-data update for `atag:`.
+  final bool artIndexed;
+
+  SqlCompiler(
+      {this.tagsInstalled = true,
+      this.artTagsInstalled = true,
+      this.artIndexed = true});
+
+  static CompiledQuery compile(QueryNode root,
+          {bool tagsInstalled = true,
+          bool artTagsInstalled = true,
+          bool artIndexed = true}) =>
+      SqlCompiler(
+              tagsInstalled: tagsInstalled,
+              artTagsInstalled: artTagsInstalled,
+              artIndexed: artIndexed)
+          ._run(root);
 
   CompiledQuery _run(QueryNode root) {
     var where = _node(root);
     if (where.isEmpty) where = '1=1';
-    return CompiledQuery(where, _params, _orderBy());
+    if (_displayConds.isEmpty) return CompiledQuery(where, _params, _orderBy());
+    // The preferred print wins when it qualifies; otherwise the newest
+    // English one, so the tile shows the art that was searched for.
+    final display = '(SELECT dp.id FROM prints dp '
+        'WHERE dp.oracle_id = cards.oracle_id AND ${_displayConds.join(' AND ')} '
+        "ORDER BY dp.id = cards.preferred_print_id DESC, (dp.lang = 'en') DESC, "
+        'dp.released_at DESC LIMIT 1)';
+    return CompiledQuery(where, _params, _orderBy(),
+        displayPrint: display, displayParams: _displayParams);
   }
 
   // ---------------------------------------------------------------- nodes
@@ -48,7 +89,7 @@ class SqlCompiler {
   String _node(QueryNode n) => switch (n) {
         AndNode a => _junction(a.children, 'AND'),
         OrNode o => _junction(o.children, 'OR'),
-        NotNode not => switch (_node(not.child)) {
+        NotNode not => switch (_nonConjunctive(() => _node(not.child))) {
             '' => '',
             final inner => 'NOT ($inner)',
           },
@@ -57,10 +98,23 @@ class SqlCompiler {
       };
 
   String _junction(List<QueryNode> children, String op) {
-    final parts = children.map(_node).where((s) => s.isNotEmpty).toList();
+    String child(QueryNode n) => op == 'OR' && children.length > 1
+        ? _nonConjunctive(() => _node(n))
+        : _node(n);
+    final parts = children.map(child).where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) return '';
     if (parts.length == 1) return parts.first;
     return '(${parts.join(' $op ')})';
+  }
+
+  String _nonConjunctive(String Function() compile) {
+    final outer = _conjunctive;
+    _conjunctive = false;
+    try {
+      return compile();
+    } finally {
+      _conjunctive = outer;
+    }
   }
 
   // ---------------------------------------------------------------- terms
@@ -244,6 +298,35 @@ class SqlCompiler {
             ') SELECT tc.oracle_id FROM tagdb.tag_cards tc '
             'JOIN tset ON tc.tag_id = tset.id)';
 
+      // ---- art tags (same pack; they tag illustrations, not cards)
+      case 'atag' || 'arttag' || 'art':
+        if (!tagsInstalled || !artTagsInstalled) {
+          throw QuerySemanticError(
+              "art tags aren't downloaded — get 'Tag data' from the "
+              'Card data screen',
+              p.position);
+        }
+        if (!artIndexed) {
+          throw QuerySemanticError(
+              'art tags need newer card data — update it from the Card '
+              'data screen',
+              p.position);
+        }
+        if (op != ':' && op != '=') {
+          throw QuerySemanticError(
+              "operator '$op' is not valid for '$field'", p.position);
+        }
+        final tag = normalizeTag(text());
+        if (_conjunctive) {
+          _displayParams.addAll([tag, tag]);
+          _displayConds.add('EXISTS (SELECT 1 FROM print_art pa '
+              'WHERE pa.print_id = dp.id AND pa.illustration_id IN '
+              '(${_artIllustrations()}))');
+        }
+        _params.addAll([tag, tag]);
+        return 'cards.oracle_id IN (SELECT pa.oracle_id FROM print_art pa '
+            'WHERE pa.illustration_id IN (${_artIllustrations()}))';
+
       default:
         throw QuerySemanticError.unknownField(field,
             suggestion: _suggestField(field));
@@ -251,6 +334,16 @@ class SqlCompiler {
   }
 
   // ------------------------------------------------------------- helpers
+
+  /// Illustrations carrying an art tag — matched by slug or alias (two
+  /// params) — or any of its descendants, like `otag:`.
+  String _artIllustrations() => 'WITH RECURSIVE aset(id) AS ('
+      'SELECT id FROM tagdb.art_tags WHERE slug = ? '
+      'UNION SELECT tag_id FROM tagdb.art_tag_aliases WHERE alias = ? '
+      'UNION SELECT e.child_id FROM tagdb.art_tag_edges e '
+      'JOIN aset ON e.parent_id = aset.id'
+      ') SELECT ti.illustration_id FROM tagdb.art_tag_illustrations ti '
+      'JOIN aset ON ti.tag_id = aset.id';
 
   String _facesExists(String cond) =>
       'EXISTS (SELECT 1 FROM faces f WHERE f.oracle_id = cards.oracle_id AND ($cond))';
@@ -524,7 +617,7 @@ class SqlCompiler {
     'artist', 'flavor', 'watermark', 'border', 'frame', 'format', 'banned',
     'restricted', 'layout', 'game', 'lang', 'year', 'date', 'produces',
     'edhrec', 'order', 'direction', 'is', 'not', 'otag', 'oracletag',
-    'function',
+    'function', 'atag', 'arttag', 'art',
   ];
 
   String? _suggestField(String field) {

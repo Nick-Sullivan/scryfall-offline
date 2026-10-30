@@ -7,9 +7,10 @@ import '../app/providers.dart';
 import '../data/images/art_saver.dart';
 import '../search/ui/filter_form.dart';
 
-/// App preferences. Card size applies to both results grids; the default
-/// filter — what the app opens with and what the filter panel's Reset returns
-/// to — lives in its own collapsible section. Everything saves immediately.
+/// App preferences. Card size applies to both results grids; which filters
+/// the filter panel shows, and the default filter — what the app opens with
+/// and what the filter panel's Reset returns to — live in collapsible
+/// sections. Everything saves immediately.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -20,10 +21,33 @@ class SettingsScreen extends ConsumerWidget {
     ref.read(searchProvider.notifier).setQuery(next.toSyntax());
   }
 
+  /// Switching a section off also clears it from the default and active
+  /// filters — otherwise it would keep shaping results with no way to see
+  /// or change it.
+  void _setVisible(WidgetRef ref, FilterSection section, bool visible) {
+    ref.read(hiddenFilterSectionsProvider.notifier).setVisible(section, visible);
+    if (visible) return;
+    final defaults = ref.read(defaultFilterProvider);
+    // Setting the default also resets the active filter to it, so only do
+    // that when the default actually used this section.
+    if (defaults.isActive(section)) {
+      ref.read(defaultFilterProvider.notifier).set(defaults.cleared(section));
+    }
+    final active = ref.read(filterProvider);
+    if (active.isActive(section)) {
+      final next = active.cleared(section);
+      ref.read(filterProvider.notifier).set(next);
+      ref.read(searchProvider.notifier).setQuery(next.toSyntax());
+    } else if (defaults.isActive(section)) {
+      ref.read(searchProvider.notifier).setQuery(active.toSyntax());
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final columns = ref.watch(cardColumnsProvider);
+    final hidden = ref.watch(hiddenFilterSectionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -35,11 +59,6 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Cards per row', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'How many cards fit across the search and saved grids.',
-                  style: theme.textTheme.bodySmall,
-                ),
                 const SizedBox(height: 12),
                 SegmentedButton<int>(
                   // Without this the check icon widens whichever segment is
@@ -72,12 +91,23 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const Divider(height: 24),
           ],
+          ExpansionTile(
+            title: const Text('Filter panel'),
+            childrenPadding: EdgeInsets.zero,
+            children: [
+              for (final s in FilterSection.values)
+                SwitchListTile(
+                  title: Text(s.label),
+                  value: !hidden.contains(s),
+                  onChanged: (v) => _setVisible(ref, s, v),
+                ),
+            ],
+          ),
+          const Divider(height: 24),
           // The Clear action lives inside this section, not the app bar, so it
           // reads as "clear the filter" rather than "reset all settings".
           ExpansionTile(
             title: const Text('Default filter'),
-            subtitle: const Text(
-                'Applied when the app opens and when you reset the filters.'),
             childrenPadding: EdgeInsets.zero,
             children: [
               Align(
@@ -94,6 +124,7 @@ class SettingsScreen extends ConsumerWidget {
                 value: ref.watch(defaultFilterProvider),
                 onChanged: (next) => _set(ref, next),
                 embedded: true,
+                hidden: hidden,
               ),
             ],
           ),

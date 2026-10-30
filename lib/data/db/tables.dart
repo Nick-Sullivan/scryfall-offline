@@ -69,6 +69,19 @@ class Prints extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Illustrations on each printing — one row per distinct illustration, so a
+/// double-faced print with two arts gets two. Art tags key on illustration,
+/// not card; oracleId is denormalized so `atag:` resolves to cards without a
+/// join through prints.
+class PrintArt extends Table {
+  TextColumn get illustrationId => text()();
+  TextColumn get printId => text()();
+  TextColumn get oracleId => text()();
+
+  @override
+  Set<Column> get primaryKey => {printId, illustrationId};
+}
+
 class Rulings extends Table {
   TextColumn get oracleId => text()();
   TextColumn get publishedAt => text()();

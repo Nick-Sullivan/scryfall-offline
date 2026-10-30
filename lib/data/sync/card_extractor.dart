@@ -52,8 +52,9 @@ class ExtractedCard {
   final CardsCompanion? card; // null when this oracle_id was already seen
   final List<FacesCompanion> faces;
   final PrintsCompanion print;
+  final List<PrintArtCompanion> art;
 
-  ExtractedCard(this.card, this.faces, this.print);
+  ExtractedCard(this.card, this.faces, this.print, this.art);
 }
 
 class CardExtractor {
@@ -70,8 +71,9 @@ class CardExtractor {
     if (oracleId == null) return null;
 
     final print = _extractPrint(json, oracleId);
+    final art = _extractArt(json, facesJson, print.id.value, oracleId);
     if (_seenOracleIds.contains(oracleId)) {
-      return ExtractedCard(null, const [], print);
+      return ExtractedCard(null, const [], print, art);
     }
     _seenOracleIds.add(oracleId);
 
@@ -97,7 +99,23 @@ class CardExtractor {
       legalities: packLegalities(json['legalities'] as Map<String, dynamic>?),
       releasedAtFirst: _julianDay(json['released_at'] as String?),
     );
-    return ExtractedCard(card, faces, print);
+    return ExtractedCard(card, faces, print, art);
+  }
+
+  /// Distinct illustrations on a print: the top-level id for single-faced
+  /// cards, one per face for double-faced ones (which carry it per face).
+  List<PrintArtCompanion> _extractArt(Map<String, dynamic> json,
+      List<Map<String, dynamic>>? facesJson, String printId, String oracleId) {
+    final ids = <String>{
+      if (json['illustration_id'] case final String id) id,
+      for (final f in facesJson ?? const <Map<String, dynamic>>[])
+        if (f['illustration_id'] case final String id) id,
+    };
+    return [
+      for (final id in ids)
+        PrintArtCompanion.insert(
+            illustrationId: id, printId: printId, oracleId: oracleId)
+    ];
   }
 
   List<FacesCompanion> _extractFaces(Map<String, dynamic> json,
