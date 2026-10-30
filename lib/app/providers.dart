@@ -241,7 +241,7 @@ class ArtFolderNotifier extends Notifier<ArtFolder?> {
 
   /// Opens the folder picker; keeps the current folder if the user cancels.
   Future<ArtFolder?> pick() async {
-    final picked = await ArtFolderChannel.pickFolder();
+    final picked = await ArtFolderChannel.pickFolder(current: state);
     if (picked != null) {
       state = picked;
       final prefs = ref.read(prefsProvider);

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
@@ -31,7 +32,7 @@ class MainActivity : FlutterActivity() {
 
     private fun onCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "pickFolder" -> pickFolder(result)
+            "pickFolder" -> pickFolder(call.argument<String>("current"), result)
             "hasAccess" -> result.success(hasAccess(tree(call)))
             "listFiles" -> background(result) { listFiles(tree(call)) }
             "writeFile" -> background(result) {
@@ -52,14 +53,23 @@ class MainActivity : FlutterActivity() {
     private fun rootDoc(tree: Uri) =
         DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
 
-    private fun pickFolder(result: MethodChannel.Result) {
+    /// Opens in the current folder, or Pictures the first time. Without a
+    /// starting point the picker shows the storage root, which Android
+    /// refuses to grant ("Can't use this folder").
+    private fun pickFolder(current: String?, result: MethodChannel.Result) {
         if (pendingPick != null) {
             result.error("BUSY", "Folder picker already open", null)
             return
         }
         pendingPick = result
+        val start = current?.let { rootDoc(Uri.parse(it)) }
+            ?: DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE, "primary:Pictures")
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, start)
+        }
         @Suppress("DEPRECATION")
-        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER)
+        startActivityForResult(intent, PICK_FOLDER)
     }
 
     @Deprecated("Deprecated in Java")
@@ -151,5 +161,6 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val PICK_FOLDER = 7301
+        const val EXTERNAL_STORAGE = "com.android.externalstorage.documents"
     }
 }

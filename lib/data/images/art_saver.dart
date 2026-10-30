@@ -30,8 +30,10 @@ const _channel = MethodChannel('scryfall_app/art_folder');
 
 /// Android folder picker and grant check (MainActivity's art_folder channel).
 class ArtFolderChannel {
-  static Future<ArtFolder?> pickFolder() async {
-    final r = await _channel.invokeMapMethod<String, String>('pickFolder');
+  /// Opens the picker in [current] when given, otherwise in Pictures.
+  static Future<ArtFolder?> pickFolder({ArtFolder? current}) async {
+    final r = await _channel.invokeMapMethod<String, String>(
+        'pickFolder', {'current': current?.uri});
     return r == null ? null : (uri: r['uri']!, name: r['name']!);
   }
 
