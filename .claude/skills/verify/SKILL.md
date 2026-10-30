@@ -36,6 +36,14 @@ Always delete `-wal`/`-shm` when swapping the DB file, and copy them back
 out *together* when inspecting — fresh writes live in the WAL, so a bare
 `cat scryfall.db` misses them.
 
+The tag pack is `files/db/tags.db` (attached as `tagdb`). Build one in the same
+throwaway test with `TagIngestor.ingestTags` over `tags_fixture.jsonl` and
+`art_tags_fixture.jsonl`, then `finalize()`. A real one comes from Card data →
+Download tag data (~20 MB download, ~1 min); real art tags match the fixture
+cards' illustration ids, so it pairs fine with the fixture card DB.
+
+Delete the throwaway seed test afterwards.
+
 ## Drive & observe
 
 - Screenshot: `adb exec-out screencap -p > shot.png`
@@ -52,6 +60,16 @@ out *together* when inspecting — fresh writes live in the WAL, so a bare
 - Git Bash mangles `/data/...` into `C:/Program Files/Git/data/...`;
   `export MSYS_NO_PATHCONV=1` first.
 - The emulator may hold real test data from earlier sessions — check
-  `run-as <pkg> ls files/db` before overwriting.
+  `run-as <pkg> ls files/db` before overwriting, and back files up to
+  `/data/local/tmp` first. The user also uses it between runs, so re-check
+  prefs/state rather than assuming what you left.
+- `adb shell input text` goes through the device shell: `>`, `<`, `|`, `(`,
+  quotes etc. get interpreted (`pow>=2` creates a file named `=2`). Type
+  queries without them, or drive the filter panel instead.
+- The filter panel is a top sheet: swipes to scroll it must start inside it
+  (y < ~1000 px), or they scroll the results grid behind.
+- Pref changes need `am force-stop` before editing
+  `shared_prefs/FlutterSharedPreferences.xml`, or the app overwrites them.
+  List prefs are stored as `VGhpcyBpcyB0aGUgcHJlZml4IGZvciBhIGxpc3Qu!<json>`.
 - Live API sanity probe: `https://api.scryfall.com/sets` needs both
   User-Agent and Accept headers or Scryfall returns 400.

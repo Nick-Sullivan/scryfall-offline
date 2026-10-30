@@ -15,7 +15,9 @@ Future<void> downloadFile(
   final response = await client.send(request);
   if (response.statusCode != 200) {
     throw http.ClientException(
-        'download of $uri failed: HTTP ${response.statusCode}', uri);
+      'download of $uri failed: HTTP ${response.statusCode}',
+      uri,
+    );
   }
 
   final part = File('${target.path}.part');

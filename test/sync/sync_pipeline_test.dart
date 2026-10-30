@@ -31,10 +31,14 @@ void main() {
   }
 
   test('ingest isolate builds staging DB, swap makes it live', () async {
-    final cardsGz =
-        gzipFixture('test/fixtures/cards_fixture.jsonl', 'cards.jsonl.gz');
-    final rulingsGz =
-        gzipFixture('test/fixtures/rulings_fixture.jsonl', 'rulings.jsonl.gz');
+    final cardsGz = gzipFixture(
+      'test/fixtures/cards_fixture.jsonl',
+      'cards.jsonl.gz',
+    );
+    final rulingsGz = gzipFixture(
+      'test/fixtures/rulings_fixture.jsonl',
+      'rulings.jsonl.gz',
+    );
 
     final port = ReceivePort();
     final done = Completer<Map>();
@@ -45,8 +49,7 @@ void main() {
       if (map['type'] == 'done' || map['type'] == 'error') done.complete(map);
     });
 
-    final dllPath =
-        File('tools/sqlite3/sqlite3.dll').absolute.path;
+    final dllPath = File('tools/sqlite3/sqlite3.dll').absolute.path;
     await Isolate.spawn(
       ingestIsolateMain,
       IngestRequest(
@@ -64,8 +67,11 @@ void main() {
 
     final result = await done.future.timeout(const Duration(minutes: 2));
     port.close();
-    expect(result['type'], 'done',
-        reason: 'isolate reported: ${result['message']}');
+    expect(
+      result['type'],
+      'done',
+      reason: 'isolate reported: ${result['message']}',
+    );
     expect(result['cards'], 16);
     expect(result['prints'], 17);
     expect(phases, contains('finalizing'));
@@ -83,8 +89,7 @@ void main() {
         .getSingle();
     expect(row.data['n'], 16);
     final meta = await db
-        .customSelect(
-            "SELECT value FROM meta WHERE key = 'bulkUpdatedAt'")
+        .customSelect("SELECT value FROM meta WHERE key = 'bulkUpdatedAt'")
         .getSingle();
     expect(meta.data['value'], '2026-07-03T00:00:00Z');
     final setsTotal = await db

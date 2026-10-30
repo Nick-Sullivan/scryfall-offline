@@ -11,7 +11,9 @@ void configureSqliteForTests() {
     final dll = File('tools/sqlite3/sqlite3.dll').absolute;
     if (dll.existsSync()) {
       open.overrideFor(
-          OperatingSystem.windows, () => DynamicLibrary.open(dll.path));
+        OperatingSystem.windows,
+        () => DynamicLibrary.open(dll.path),
+      );
     }
   } else if (Platform.isLinux) {
     open.overrideFor(OperatingSystem.linux, () {

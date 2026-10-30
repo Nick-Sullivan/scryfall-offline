@@ -51,15 +51,18 @@ Future<void> main() async {
     }
     final card = jsonDecode(resp.body) as Map<String, dynamic>;
     lines.add(jsonEncode(card));
-    stdout.writeln('fetched ${card['name']} [${card['set']}] '
-        'layout=${card['layout']}');
+    stdout.writeln(
+      'fetched ${card['name']} [${card['set']}] '
+      'layout=${card['layout']}',
+    );
 
     // Grab rulings for a couple of cards to fixture the rulings pipeline.
     if (name == 'Tarmogoyf' || name == 'Fire // Ice') {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       final r = await http.get(
-          Uri.parse('https://api.scryfall.com/cards/${card['id']}/rulings'),
-          headers: _headers);
+        Uri.parse('https://api.scryfall.com/cards/${card['id']}/rulings'),
+        headers: _headers,
+      );
       if (r.statusCode == 200) {
         final data = (jsonDecode(r.body) as Map<String, dynamic>)['data'];
         for (final ruling in data as List) {
@@ -71,23 +74,26 @@ Future<void> main() async {
   }
 
   // A minimal token object to verify the extractor skips extras.
-  lines.add(jsonEncode({
-    'object': 'card',
-    'id': '00000000-0000-0000-0000-000000000001',
-    'oracle_id': '00000000-0000-0000-0000-000000000002',
-    'name': 'Treasure',
-    'layout': 'token',
-    'cmc': 0.0,
-    'type_line': 'Token Artifact — Treasure',
-    'set': 'tznr',
-    'collector_number': '1',
-    'rarity': 'common',
-    'released_at': '2020-09-25',
-    'legalities': <String, dynamic>{},
-  }));
+  lines.add(
+    jsonEncode({
+      'object': 'card',
+      'id': '00000000-0000-0000-0000-000000000001',
+      'oracle_id': '00000000-0000-0000-0000-000000000002',
+      'name': 'Treasure',
+      'layout': 'token',
+      'cmc': 0.0,
+      'type_line': 'Token Artifact — Treasure',
+      'set': 'tznr',
+      'collector_number': '1',
+      'rarity': 'common',
+      'released_at': '2020-09-25',
+      'legalities': <String, dynamic>{},
+    }),
+  );
 
   out.writeAsStringSync('${lines.join('\n')}\n');
-  File('test/fixtures/rulings_fixture.jsonl')
-      .writeAsStringSync('${rulings.join('\n')}\n');
+  File(
+    'test/fixtures/rulings_fixture.jsonl',
+  ).writeAsStringSync('${rulings.join('\n')}\n');
   stdout.writeln('wrote ${lines.length} cards, ${rulings.length} rulings');
 }

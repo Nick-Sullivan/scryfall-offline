@@ -109,7 +109,14 @@ String pngUrl(String normalUrl) {
 String _safeFileName(String s) =>
     s.replaceAll(' // ', ' - ').replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
 
-const _rarityNames = ['common', 'uncommon', 'rare', 'special', 'mythic', 'bonus'];
+const _rarityNames = [
+  'common',
+  'uncommon',
+  'rare',
+  'special',
+  'mythic',
+  'bonus',
+];
 
 class CardRepository {
   final AppDatabase db;
@@ -122,33 +129,39 @@ class CardRepository {
       'p.image_uri_small, p.image_uri_normal';
 
   static CardSummary _summary(QueryRow r) => CardSummary(
-        oracleId: r.data['oracle_id'] as String,
-        printId: r.data['print_id'] as String?,
-        isPreferredPrint: r.data['is_preferred'] == 1,
-        name: r.data['name'] as String,
-        manaCost: r.data['mana_cost'] as String?,
-        typeLine: r.data['type_line'] as String,
-        imageSmall: r.data['image_uri_small'] as String?,
-        imageNormal: r.data['image_uri_normal'] as String?,
-      );
+    oracleId: r.data['oracle_id'] as String,
+    printId: r.data['print_id'] as String?,
+    isPreferredPrint: r.data['is_preferred'] == 1,
+    name: r.data['name'] as String,
+    manaCost: r.data['mana_cost'] as String?,
+    typeLine: r.data['type_line'] as String,
+    imageSmall: r.data['image_uri_small'] as String?,
+    imageNormal: r.data['image_uri_normal'] as String?,
+  );
 
   /// One page of matching cards. Kept separate from [count] so the UI can
   /// paint results without waiting on the full-table COUNT(*).
-  Future<List<CardSummary>> searchRows(CompiledQuery query,
-      {required int limit, required int offset}) async {
+  Future<List<CardSummary>> searchRows(
+    CompiledQuery query, {
+    required int limit,
+    required int offset,
+  }) async {
     final shown = switch (query.displayPrint) {
       final display? => 'COALESCE($display, cards.preferred_print_id)',
       null => 'cards.preferred_print_id',
     };
-    final rows = await db.customSelect(
-      'SELECT $_summaryColumns '
-      'FROM cards LEFT JOIN prints p ON p.id = $shown '
-      'WHERE ${query.where} ORDER BY ${query.orderBy} '
-      'LIMIT $limit OFFSET $offset',
-      variables: [
-        for (final p in [...query.displayParams, ...query.params]) Variable(p)
-      ],
-    ).get();
+    final rows = await db
+        .customSelect(
+          'SELECT $_summaryColumns '
+          'FROM cards LEFT JOIN prints p ON p.id = $shown '
+          'WHERE ${query.where} ORDER BY ${query.orderBy} '
+          'LIMIT $limit OFFSET $offset',
+          variables: [
+            for (final p in [...query.displayParams, ...query.params])
+              Variable(p),
+          ],
+        )
+        .get();
     return [for (final r in rows) _summary(r)];
   }
 
@@ -159,13 +172,17 @@ class CardRepository {
     final found = <String, CardSummary>{};
     for (var i = 0; i < oracleIds.length; i += 500) {
       final chunk = oracleIds.sublist(
-          i, i + 500 > oracleIds.length ? oracleIds.length : i + 500);
-      final rows = await db.customSelect(
-        'SELECT $_summaryColumns '
-        'FROM cards LEFT JOIN prints p ON p.id = cards.preferred_print_id '
-        'WHERE cards.oracle_id IN (${List.filled(chunk.length, '?').join(',')})',
-        variables: [for (final id in chunk) Variable(id)],
-      ).get();
+        i,
+        i + 500 > oracleIds.length ? oracleIds.length : i + 500,
+      );
+      final rows = await db
+          .customSelect(
+            'SELECT $_summaryColumns '
+            'FROM cards LEFT JOIN prints p ON p.id = cards.preferred_print_id '
+            'WHERE cards.oracle_id IN (${List.filled(chunk.length, '?').join(',')})',
+            variables: [for (final id in chunk) Variable(id)],
+          )
+          .get();
       for (final r in rows) {
         final s = _summary(r);
         found[s.oracleId] = s;
@@ -173,53 +190,67 @@ class CardRepository {
     }
     return [
       for (final id in oracleIds)
-        if (found[id] case final s?) s
+        if (found[id] case final s?) s,
     ];
   }
 
   /// Total matching cards (a full scan with EXISTS subqueries — the slow part
   /// of a search, run after results are already on screen).
   Future<int> count(CompiledQuery query) async {
-    final row = await db.customSelect(query.countSql(),
-        variables: [for (final p in query.params) Variable(p)]).getSingle();
+    final row = await db
+        .customSelect(
+          query.countSql(),
+          variables: [for (final p in query.params) Variable(p)],
+        )
+        .getSingle();
     return row.data['n'] as int;
   }
 
   Future<CardDetail?> detail(String oracleId, {String? printId}) async {
-    final card = await db.customSelect(
-        'SELECT oracle_id, name, legalities, preferred_print_id FROM cards '
-        'WHERE oracle_id = ?',
-        variables: [Variable(oracleId)]).getSingleOrNull();
+    final card = await db
+        .customSelect(
+          'SELECT oracle_id, name, legalities, preferred_print_id FROM cards '
+          'WHERE oracle_id = ?',
+          variables: [Variable(oracleId)],
+        )
+        .getSingleOrNull();
     if (card == null) return null;
 
     // raw_json is a few KB per row and heavily reprinted cards (basic lands)
     // have hundreds of printings — fetch it only for the print we display.
-    final printRows = await db.customSelect(
-        'SELECT id, set_code, set_name, collector_number, rarity, lang, '
-        'image_uri_small, image_uri_normal, artist '
-        'FROM prints WHERE oracle_id = ? ORDER BY released_at DESC',
-        variables: [Variable(oracleId)]).get();
-    final rulingRows = await db.customSelect(
-        'SELECT published_at, comment FROM rulings WHERE oracle_id = ? '
-        'ORDER BY published_at',
-        variables: [Variable(oracleId)]).get();
+    final printRows = await db
+        .customSelect(
+          'SELECT id, set_code, set_name, collector_number, rarity, lang, '
+          'image_uri_small, image_uri_normal, artist '
+          'FROM prints WHERE oracle_id = ? ORDER BY released_at DESC',
+          variables: [Variable(oracleId)],
+        )
+        .get();
+    final rulingRows = await db
+        .customSelect(
+          'SELECT published_at, comment FROM rulings WHERE oracle_id = ? '
+          'ORDER BY published_at',
+          variables: [Variable(oracleId)],
+        )
+        .get();
 
-    final selectedId =
-        printId ?? card.data['preferred_print_id'] as String?;
-    final selected =
-        printRows.any((r) => r.data['id'] == selectedId)
-            ? selectedId!
-            : printRows.first.data['id'] as String;
-    final rawRow = await db.customSelect(
-        'SELECT raw_json FROM prints WHERE id = ?',
-        variables: [Variable(selected)]).getSingle();
+    final selectedId = printId ?? card.data['preferred_print_id'] as String?;
+    final selected = printRows.any((r) => r.data['id'] == selectedId)
+        ? selectedId!
+        : printRows.first.data['id'] as String;
+    final rawRow = await db
+        .customSelect(
+          'SELECT raw_json FROM prints WHERE id = ?',
+          variables: [Variable(selected)],
+        )
+        .getSingle();
 
     return CardDetail(
       oracleId: oracleId,
       name: card.data['name'] as String,
       legalities: card.data['legalities'] as int,
-      rawJson: jsonDecode(rawRow.data['raw_json'] as String)
-          as Map<String, dynamic>,
+      rawJson:
+          jsonDecode(rawRow.data['raw_json'] as String) as Map<String, dynamic>,
       printings: [
         for (final r in printRows)
           PrintingInfo(
@@ -227,18 +258,23 @@ class CardRepository {
             setCode: r.data['set_code'] as String,
             setName: r.data['set_name'] as String,
             collectorNumber: r.data['collector_number'] as String,
-            rarityName: _rarityNames[(r.data['rarity'] as int)
-                .clamp(0, _rarityNames.length - 1)],
+            rarityName:
+                _rarityNames[(r.data['rarity'] as int).clamp(
+                  0,
+                  _rarityNames.length - 1,
+                )],
             lang: r.data['lang'] as String,
             imageSmall: r.data['image_uri_small'] as String?,
             imageNormal: r.data['image_uri_normal'] as String?,
             artist: r.data['artist'] as String?,
-          )
+          ),
       ],
       rulings: [
         for (final r in rulingRows)
           RulingInfo(
-              r.data['published_at'] as String, r.data['comment'] as String)
+            r.data['published_at'] as String,
+            r.data['comment'] as String,
+          ),
       ],
     );
   }
@@ -246,7 +282,7 @@ class CardRepository {
   Future<Map<String, String>> metaEntries() async {
     final rows = await db.customSelect('SELECT key, value FROM meta').get();
     return {
-      for (final r in rows) r.data['key'] as String: r.data['value'] as String
+      for (final r in rows) r.data['key'] as String: r.data['value'] as String,
     };
   }
 
@@ -257,13 +293,16 @@ class CardRepository {
   /// (oracle_id, normal-image URL) for every card, for the offline image
   /// pack. DFC prints carry the front face's image here.
   Future<List<(String, String)>> imageTargets() async {
-    final rows = await db.customSelect(
-        'SELECT cards.oracle_id, p.image_uri_normal FROM cards '
-        'JOIN prints p ON p.id = cards.preferred_print_id '
-        'WHERE p.image_uri_normal IS NOT NULL').get();
+    final rows = await db
+        .customSelect(
+          'SELECT cards.oracle_id, p.image_uri_normal FROM cards '
+          'JOIN prints p ON p.id = cards.preferred_print_id '
+          'WHERE p.image_uri_normal IS NOT NULL',
+        )
+        .get();
     return [
       for (final r in rows)
-        (r.data['oracle_id'] as String, r.data['image_uri_normal'] as String)
+        (r.data['oracle_id'] as String, r.data['image_uri_normal'] as String),
     ];
   }
 
@@ -271,20 +310,25 @@ class CardRepository {
   /// second entry per print for double-faced backs. The back's URL is only
   /// in raw_json (prints.image_uri_normal holds the front face).
   Future<List<ArtTarget>> artTargets(String oracleId) async {
-    final rows = await db.customSelect(
-        'SELECT c.name, p.set_code, p.collector_number, p.lang, '
-        'p.image_uri_normal, '
-        "json_extract(p.raw_json, '\$.card_faces[1].image_uris.normal') "
-        'AS back_normal '
-        'FROM prints p JOIN cards c ON c.oracle_id = p.oracle_id '
-        'WHERE p.oracle_id = ? ORDER BY p.released_at DESC',
-        variables: [Variable(oracleId)]).get();
+    final rows = await db
+        .customSelect(
+          'SELECT c.name, p.set_code, p.collector_number, p.lang, '
+          'p.image_uri_normal, '
+          "json_extract(p.raw_json, '\$.card_faces[1].image_uris.normal') "
+          'AS back_normal '
+          'FROM prints p JOIN cards c ON c.oracle_id = p.oracle_id '
+          'WHERE p.oracle_id = ? ORDER BY p.released_at DESC',
+          variables: [Variable(oracleId)],
+        )
+        .get();
     final targets = <ArtTarget>[];
     for (final r in rows) {
       final lang = r.data['lang'] as String;
-      final base = _safeFileName('${r.data['name']} - '
-          '${(r.data['set_code'] as String).toUpperCase()} '
-          '${r.data['collector_number']}${lang == 'en' ? '' : ' $lang'}');
+      final base = _safeFileName(
+        '${r.data['name']} - '
+        '${(r.data['set_code'] as String).toUpperCase()} '
+        '${r.data['collector_number']}${lang == 'en' ? '' : ' $lang'}',
+      );
       if (r.data['image_uri_normal'] case final String front) {
         targets.add(ArtTarget(pngUrl(front), base));
       }
@@ -299,11 +343,14 @@ class CardRepository {
   /// from every type line ("Legendary Creature — Elf Warrior" contributes
   /// Legendary, Creature, Elf, Warrior). Face separators are dropped.
   Future<List<String>> allTypes() async {
-    final rows =
-        await db.customSelect('SELECT DISTINCT type_line FROM cards').get();
+    final rows = await db
+        .customSelect('SELECT DISTINCT type_line FROM cards')
+        .get();
     final types = <String>{};
     for (final r in rows) {
-      for (final word in (r.data['type_line'] as String).split(RegExp(r'\s+'))) {
+      for (final word in (r.data['type_line'] as String).split(
+        RegExp(r'\s+'),
+      )) {
         if (word.isNotEmpty && word != '—' && word != '//') types.add(word);
       }
     }
@@ -313,11 +360,14 @@ class CardRepository {
 
   /// Distinct sets for the filter sheet's set autocomplete.
   Future<List<(String, String)>> allSets() async {
-    final rows = await db.customSelect(
-        'SELECT DISTINCT set_code, set_name FROM prints ORDER BY set_name').get();
+    final rows = await db
+        .customSelect(
+          'SELECT DISTINCT set_code, set_name FROM prints ORDER BY set_name',
+        )
+        .get();
     return [
       for (final r in rows)
-        (r.data['set_code'] as String, r.data['set_name'] as String)
+        (r.data['set_code'] as String, r.data['set_name'] as String),
     ];
   }
 
@@ -325,14 +375,17 @@ class CardRepository {
   /// taggings only — the parent tags they roll up into aren't stored per card.
   /// Same tag-pack requirement as [allTags].
   Future<List<(String, String)>> tagsForCard(String oracleId) async {
-    final rows = await db.customSelect(
-        'SELECT t.slug, t.label FROM tagdb.tag_cards tc '
-        'JOIN tagdb.tags t ON t.id = tc.tag_id '
-        'WHERE tc.oracle_id = ? ORDER BY t.label',
-        variables: [Variable(oracleId)]).get();
+    final rows = await db
+        .customSelect(
+          'SELECT t.slug, t.label FROM tagdb.tag_cards tc '
+          'JOIN tagdb.tags t ON t.id = tc.tag_id '
+          'WHERE tc.oracle_id = ? ORDER BY t.label',
+          variables: [Variable(oracleId)],
+        )
+        .get();
     return [
       for (final r in rows)
-        (r.data['slug'] as String, r.data['label'] as String)
+        (r.data['slug'] as String, r.data['label'] as String),
     ];
   }
 
@@ -340,16 +393,19 @@ class CardRepository {
   /// a double-faced print — alphabetical by label. Direct taggings only.
   /// Needs a tag pack with art tags (see artTagsInstalledProvider).
   Future<List<(String, String)>> artTagsForPrint(String printId) async {
-    final rows = await db.customSelect(
-        'SELECT DISTINCT t.slug, t.label FROM print_art pa '
-        'JOIN tagdb.art_tag_illustrations ti '
-        'ON ti.illustration_id = pa.illustration_id '
-        'JOIN tagdb.art_tags t ON t.id = ti.tag_id '
-        'WHERE pa.print_id = ? ORDER BY t.label',
-        variables: [Variable(printId)]).get();
+    final rows = await db
+        .customSelect(
+          'SELECT DISTINCT t.slug, t.label FROM print_art pa '
+          'JOIN tagdb.art_tag_illustrations ti '
+          'ON ti.illustration_id = pa.illustration_id '
+          'JOIN tagdb.art_tags t ON t.id = ti.tag_id '
+          'WHERE pa.print_id = ? ORDER BY t.label',
+          variables: [Variable(printId)],
+        )
+        .get();
     return [
       for (final r in rows)
-        (r.data['slug'] as String, r.data['label'] as String)
+        (r.data['slug'] as String, r.data['label'] as String),
     ];
   }
 
@@ -361,7 +417,7 @@ class CardRepository {
         .get();
     return [
       for (final r in rows)
-        (r.data['slug'] as String, r.data['label'] as String)
+        (r.data['slug'] as String, r.data['label'] as String),
     ];
   }
 
@@ -374,7 +430,7 @@ class CardRepository {
         .get();
     return [
       for (final r in rows)
-        (r.data['slug'] as String, r.data['label'] as String)
+        (r.data['slug'] as String, r.data['label'] as String),
     ];
   }
 }

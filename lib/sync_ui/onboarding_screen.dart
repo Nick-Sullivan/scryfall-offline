@@ -14,9 +14,8 @@ class OnboardingScreen extends ConsumerWidget {
     final progress = ref.watch(syncControllerProvider);
 
     // Keep the screen awake during the one long first sync.
-    final running = progress != null &&
-        progress is! SyncFailed &&
-        progress is! SyncDone;
+    final running =
+        progress != null && progress is! SyncFailed && progress is! SyncDone;
     WakelockPlus.toggle(enable: running);
 
     return Scaffold(
@@ -27,8 +26,11 @@ class OnboardingScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.style,
-                  size: 64, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                Icons.style,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Offline card search',
@@ -53,17 +55,18 @@ class OnboardingScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       'Sync failed: $message',
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
                 FilledButton.icon(
                   onPressed: () =>
                       ref.read(syncControllerProvider.notifier).start(),
                   icon: const Icon(Icons.download),
-                  label: Text(progress is SyncFailed
-                      ? 'Try again'
-                      : 'Download card data'),
+                  label: Text(
+                    progress is SyncFailed ? 'Try again' : 'Download card data',
+                  ),
                 ),
               ] else
                 SyncProgressView(progress: progress),

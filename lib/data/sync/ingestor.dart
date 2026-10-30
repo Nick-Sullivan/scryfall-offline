@@ -86,11 +86,13 @@ class Ingestor {
     await for (final json in objects) {
       final oracleId = json['oracle_id'] as String?;
       if (oracleId == null) continue;
-      rows.add(RulingsCompanion.insert(
-        oracleId: oracleId,
-        publishedAt: json['published_at'] as String? ?? '',
-        comment: json['comment'] as String? ?? '',
-      ));
+      rows.add(
+        RulingsCompanion.insert(
+          oracleId: oracleId,
+          publishedAt: json['published_at'] as String? ?? '',
+          comment: json['comment'] as String? ?? '',
+        ),
+      );
       _stats.rulings++;
       if (rows.length >= _batchSize) await flush();
     }
@@ -99,10 +101,11 @@ class Ingestor {
 
   /// Derived data that needs the full card set: earliest release date,
   /// preferred (representative) print per card, FTS indexes, statistics.
-  Future<void> finalize(
-      {String? bulkUpdatedAt,
-      String? rulingsUpdatedAt,
-      int? setsCardTotal}) async {
+  Future<void> finalize({
+    String? bulkUpdatedAt,
+    String? rulingsUpdatedAt,
+    int? setsCardTotal,
+  }) async {
     await db.customStatement('''
       UPDATE cards SET released_at_first = COALESCE((
         SELECT MIN(p.released_at) FROM prints p
@@ -134,12 +137,11 @@ class Ingestor {
       if (rulingsUpdatedAt != null) MetaKeys.rulingsUpdatedAt: rulingsUpdatedAt,
       if (setsCardTotal != null) MetaKeys.setsCardTotal: '$setsCardTotal',
     };
-    await db.batch((b) => b.insertAll(
-        db.meta,
-        [
-          for (final e in entries.entries)
-            MetaCompanion.insert(key: e.key, value: e.value)
-        ],
-        mode: InsertMode.insertOrReplace));
+    await db.batch(
+      (b) => b.insertAll(db.meta, [
+        for (final e in entries.entries)
+          MetaCompanion.insert(key: e.key, value: e.value),
+      ], mode: InsertMode.insertOrReplace),
+    );
   }
 }

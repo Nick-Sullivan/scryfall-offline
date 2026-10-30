@@ -24,11 +24,13 @@ void main() {
     if (file.existsSync()) file.deleteSync();
     final db = AppDatabase.local(file: file);
     final ingestor = Ingestor(db);
-    await ingestor.ingestCards(File('test/fixtures/cards_fixture.jsonl')
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .transform(const BulkLineDecoder()));
+    await ingestor.ingestCards(
+      File('test/fixtures/cards_fixture.jsonl')
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .transform(const BulkLineDecoder()),
+    );
     await ingestor.finalize(bulkUpdatedAt: '2026-07-17T00:00:00Z');
     await db.close();
     expect(file.existsSync(), isTrue);

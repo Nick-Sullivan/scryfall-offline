@@ -28,13 +28,16 @@ class ScryfallQueryParser {
   static Parser<QueryNode> _build() {
     final query = undefined<QueryNode>();
 
-    final quoted = (char('"') & pattern('^"').star().flatten() & char('"'))
-        .map((v) => v[1] as String);
+    final quoted = (char('"') & pattern('^"').star().flatten() & char('"')).map(
+      (v) => v[1] as String,
+    );
 
-    final regexBody =
-        (string(r'\/').map((_) => '/') | pattern('^/')).star().map((p) => p.join());
-    final regexLiteral =
-        (char('/') & regexBody & char('/')).map((v) => RegexValue(v[1] as String));
+    final regexBody = (string(r'\/').map((_) => '/') | pattern('^/'))
+        .star()
+        .map((p) => p.join());
+    final regexLiteral = (char('/') & regexBody & char('/')).map(
+      (v) => RegexValue(v[1] as String),
+    );
 
     // Bare tokens stop at whitespace and parens; bare name words additionally
     // exclude ':' so malformed predicates fail loudly instead of silently
@@ -43,51 +46,74 @@ class ScryfallQueryParser {
     final bareWord = pattern('^ \t\r\n():').plus().flatten();
 
     final fieldToken = letter().plus().flatten();
-    final opToken = (string('!=') |
-            string('<=') |
-            string('>=') |
-            char(':') |
-            char('=') |
-            char('<') |
-            char('>'))
-        .flatten();
+    final opToken =
+        (string('!=') |
+                string('<=') |
+                string('>=') |
+                char(':') |
+                char('=') |
+                char('<') |
+                char('>'))
+            .flatten();
 
     final predicate =
-        (fieldToken.token() & opToken & (quoted.map((t) => StringValue(t, quoted: true)) | regexLiteral | bareValue.map(StringValue.new)))
+        (fieldToken.token() &
+                opToken &
+                (quoted.map((t) => StringValue(t, quoted: true)) |
+                    regexLiteral |
+                    bareValue.map(StringValue.new)))
             .map((v) {
-      final field = v[0] as Token<String>;
-      return PredicateNode(field.value.toLowerCase(), v[1] as String,
-          v[2] as QueryValue, field.start) as QueryNode;
-    });
+              final field = v[0] as Token<String>;
+              return PredicateNode(
+                    field.value.toLowerCase(),
+                    v[1] as String,
+                    v[2] as QueryValue,
+                    field.start,
+                  )
+                  as QueryNode;
+            });
 
-    final exactName = (char('!') & (quoted | bareValue))
-        .map((v) => NameTermNode(v[1] as String, exact: true) as QueryNode);
+    final exactName = (char('!') & (quoted | bareValue)).map(
+      (v) => NameTermNode(v[1] as String, exact: true) as QueryNode,
+    );
 
-    final nameWord = (quoted.map((t) => NameTermNode(t)) |
-            bareWord
-                .where((w) => w.toLowerCase() != 'or')
-                .map((w) => NameTermNode(w)))
-        .map((n) => n as QueryNode);
+    final nameWord =
+        (quoted.map((t) => NameTermNode(t)) |
+                bareWord
+                    .where((w) => w.toLowerCase() != 'or')
+                    .map((w) => NameTermNode(w)))
+            .map((n) => n as QueryNode);
 
-    final paren =
-        (char('(').trim() & query & char(')').trim()).map((v) => v[1] as QueryNode);
+    final paren = (char('(').trim() & query & char(')').trim()).map(
+      (v) => v[1] as QueryNode,
+    );
 
     final unary = undefined<QueryNode>();
-    final primary = paren | exactName.trim() | predicate.trim() | nameWord.trim();
-    unary.set(((char('-').trim() & unary).map((v) => NotNode(v[1] as QueryNode)) |
-            primary)
-        .cast<QueryNode>());
+    final primary =
+        paren | exactName.trim() | predicate.trim() | nameWord.trim();
+    unary.set(
+      ((char('-').trim() & unary).map((v) => NotNode(v[1] as QueryNode)) |
+              primary)
+          .cast<QueryNode>(),
+    );
 
     final andGroup = unary.plus().map(
-        (terms) => terms.length == 1 ? terms.first : AndNode(terms));
+      (terms) => terms.length == 1 ? terms.first : AndNode(terms),
+    );
 
     // 'or' must be a standalone word (not the start of a card name).
-    final orSep = (string('or', ignoreCase: true) &
-            (whitespace() | char('(') | endOfInput()).and())
-        .trim();
+    final orSep =
+        (string('or', ignoreCase: true) &
+                (whitespace() | char('(') | endOfInput()).and())
+            .trim();
 
-    final orGroup = andGroup.plusSeparated(orSep).map((list) =>
-        list.elements.length == 1 ? list.elements.first : OrNode(list.elements));
+    final orGroup = andGroup
+        .plusSeparated(orSep)
+        .map(
+          (list) => list.elements.length == 1
+              ? list.elements.first
+              : OrNode(list.elements),
+        );
 
     query.set(orGroup);
     return query.end().map((n) => n);

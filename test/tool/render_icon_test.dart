@@ -30,22 +30,34 @@ void main() {
 
     // Launcher icon sources ------------------------------------------------
     // Legacy/store icon: art on gradient, content can run larger.
-    await save(iconDir, 'icon.png',
-        await _render(background: true, contentScale: 1.2));
+    await save(
+      iconDir,
+      'icon.png',
+      await _render(background: true, contentScale: 1.2),
+    );
     // Adaptive layers: gradient background + transparent foreground.
     await save(iconDir, 'icon_background.png', await _renderBackground());
     // flutter_launcher_icons wraps the foreground in a 16% inset, which
     // alone keeps the art's furthest point (~413px from center at scale 1)
     // inside the adaptive-icon safe zone — so render at full scale.
-    await save(iconDir, 'icon_foreground.png',
-        await _render(background: false, contentScale: 1.0));
+    await save(
+      iconDir,
+      'icon_foreground.png',
+      await _render(background: false, contentScale: 1.0),
+    );
     // Android 13 themed icon: white silhouette on transparency.
-    await save(iconDir, 'icon_monochrome.png',
-        await _render(background: false, contentScale: 1.0, monochrome: true));
+    await save(
+      iconDir,
+      'icon_monochrome.png',
+      await _render(background: false, contentScale: 1.0, monochrome: true),
+    );
 
     // Play Store listing assets --------------------------------------------
-    await save(storeDir, 'play_icon_512.png',
-        await _render(background: true, contentScale: 1.2, size: 512));
+    await save(
+      storeDir,
+      'play_icon_512.png',
+      await _render(background: true, contentScale: 1.2, size: 512),
+    );
     await save(storeDir, 'feature_graphic.png', await _renderFeatureGraphic());
   });
 }
@@ -58,17 +70,19 @@ const _manaFills = [
   Color(0xFFC4D3CA), // G
 ];
 
-void _paintGradient(Canvas canvas,
-    {double width = 1024, double height = 1024}) {
+void _paintGradient(
+  Canvas canvas, {
+  double width = 1024,
+  double height = 1024,
+}) {
   final rect = Rect.fromLTWH(0, 0, width, height);
   canvas.drawRect(
     rect,
     Paint()
-      ..shader = ui.Gradient.linear(
-        rect.topLeft,
-        rect.bottomRight,
-        [const Color(0xFF7B4FA3), const Color(0xFF45286B)],
-      ),
+      ..shader = ui.Gradient.linear(rect.topLeft, rect.bottomRight, [
+        const Color(0xFF7B4FA3),
+        const Color(0xFF45286B),
+      ]),
   );
 }
 
@@ -117,18 +131,21 @@ void _paintArt(Canvas canvas, {bool monochrome = false}) {
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
 
   final card = RRect.fromRectAndRadius(
-      const Rect.fromLTRB(-185, -255, 185, 255), const Radius.circular(42));
+    const Rect.fromLTRB(-185, -255, 185, 255),
+    const Radius.circular(42),
+  );
 
   // Fanned back card for depth.
   canvas.save();
   canvas.translate(-30, 6);
   canvas.rotate(10 * 3.14159 / 180);
   canvas.drawRRect(
-      card,
-      Paint()
-        ..color = monochrome
-            ? Colors.white.withValues(alpha: 0.55)
-            : const Color(0xFFD9C7F0));
+    card,
+    Paint()
+      ..color = monochrome
+          ? Colors.white.withValues(alpha: 0.55)
+          : const Color(0xFFD9C7F0),
+  );
   canvas.restore();
 
   // Front card.
@@ -154,17 +171,26 @@ void _paintArt(Canvas canvas, {bool monochrome = false}) {
     // Art box + text bars, suggested with soft grey shapes.
     final grey = Paint()..color = const Color(0xFFE2DAEC);
     canvas.drawRRect(
-        RRect.fromRectAndRadius(const Rect.fromLTWH(-140, -120, 280, 190),
-            const Radius.circular(20)),
-        grey);
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-140, -120, 280, 190),
+        const Radius.circular(20),
+      ),
+      grey,
+    );
     canvas.drawRRect(
-        RRect.fromRectAndRadius(
-            const Rect.fromLTWH(-140, 100, 280, 30), const Radius.circular(15)),
-        grey);
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-140, 100, 280, 30),
+        const Radius.circular(15),
+      ),
+      grey,
+    );
     canvas.drawRRect(
-        RRect.fromRectAndRadius(
-            const Rect.fromLTWH(-140, 155, 200, 30), const Radius.circular(15)),
-        grey);
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-140, 155, 200, 30),
+        const Radius.circular(15),
+      ),
+      grey,
+    );
   }
   canvas.restore();
 
@@ -176,10 +202,16 @@ void _paintArt(Canvas canvas, {bool monochrome = false}) {
     ..strokeCap = StrokeCap.round;
   const lensCenter = Offset(140, 130);
   if (!monochrome) {
-    canvas.drawCircle(lensCenter, 122,
-        Paint()..color = const Color(0xFF45286B).withValues(alpha: 0.18));
+    canvas.drawCircle(
+      lensCenter,
+      122,
+      Paint()..color = const Color(0xFF45286B).withValues(alpha: 0.18),
+    );
   }
   canvas.drawCircle(lensCenter, 122, gold);
   canvas.drawLine(
-      lensCenter + const Offset(88, 88), const Offset(330, 320), gold);
+    lensCenter + const Offset(88, 88),
+    const Offset(330, 320),
+    gold,
+  );
 }

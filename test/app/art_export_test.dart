@@ -44,37 +44,45 @@ void main() {
 
   Future<ProviderContainer> makeContainer(http.Client client) async {
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(overrides: [
-      prefsProvider.overrideWithValue(prefs),
-      httpClientProvider.overrideWithValue(client),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        prefsProvider.overrideWithValue(prefs),
+        httpClientProvider.overrideWithValue(client),
+      ],
+    );
     addTearDown(container.dispose);
     return container;
   }
 
   test('artFolderPath shows on-device folders as a path', () {
     expect(
-        artFolderPath((
-          uri: 'content://com.android.externalstorage.documents/tree/'
-              'primary%3APictures%2FScryfall',
-          name: 'Scryfall',
-        )),
-        'Pictures/Scryfall');
+      artFolderPath((
+        uri:
+            'content://com.android.externalstorage.documents/tree/'
+            'primary%3APictures%2FScryfall',
+        name: 'Scryfall',
+      )),
+      'Pictures/Scryfall',
+    );
     // Opaque provider ids (e.g. Drive) fall back to the display name.
     expect(
-        artFolderPath((
-          uri: 'content://com.google.android.apps.docs.storage/tree/abc123',
-          name: 'MTG art',
-        )),
-        'MTG art');
+      artFolderPath((
+        uri: 'content://com.google.android.apps.docs.storage/tree/abc123',
+        name: 'MTG art',
+      )),
+      'MTG art',
+    );
   });
 
   test('saves every image and counts failed downloads', () async {
     SharedPreferences.setMockInitialValues({});
-    final container = await makeContainer(MockClient((req) async =>
-        req.url.path == '/3.png'
+    final container = await makeContainer(
+      MockClient(
+        (req) async => req.url.path == '/3.png'
             ? http.Response('', 404)
-            : http.Response.bytes([1, 2, 3], 200)));
+            : http.Response.bytes([1, 2, 3], 200),
+      ),
+    );
     final saver = _FakeSaver();
 
     await container
@@ -92,10 +100,14 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     var requests = 0;
     late ProviderContainer container;
-    container = await makeContainer(MockClient((req) async {
-      if (++requests == 1) container.read(artExportProvider.notifier).cancel();
-      return http.Response.bytes([1], 200);
-    }));
+    container = await makeContainer(
+      MockClient((req) async {
+        if (++requests == 1) {
+          container.read(artExportProvider.notifier).cancel();
+        }
+        return http.Response.bytes([1], 200);
+      }),
+    );
 
     await container
         .read(artExportProvider.notifier)
@@ -107,10 +119,13 @@ void main() {
   });
 
   test('a lost folder stops the run and forgets the folder', () async {
-    SharedPreferences.setMockInitialValues(
-        {'artFolderUri': 'content://tree/x', 'artFolderName': 'MTG'});
+    SharedPreferences.setMockInitialValues({
+      'artFolderUri': 'content://tree/x',
+      'artFolderName': 'MTG',
+    });
     final container = await makeContainer(
-        MockClient((req) async => http.Response.bytes([1], 200)));
+      MockClient((req) async => http.Response.bytes([1], 200)),
+    );
     expect(container.read(artFolderProvider)?.name, 'MTG');
 
     await container

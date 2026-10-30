@@ -21,8 +21,9 @@ void main() {
     files = DbFiles(Directory(p.join(temp.path, 'db')))
       ..root.createSync(recursive: true);
     files.live.writeAsStringSync('placeholder');
-    container =
-        ProviderContainer(overrides: [dbFilesProvider.overrideWithValue(files)]);
+    container = ProviderContainer(
+      overrides: [dbFilesProvider.overrideWithValue(files)],
+    );
     container.read(databaseProvider);
     seen = [];
     container.listen(hasCardDataProvider, (_, next) => seen.add(next));

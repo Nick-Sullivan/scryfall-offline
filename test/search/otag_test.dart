@@ -28,22 +28,28 @@ void main() {
     final tagsFile = File('${tmp.path}/tags.db');
     final tagDb = TagDatabase.local(file: tagsFile);
     final tagIngestor = TagIngestor(tagDb);
-    await tagIngestor.ingestTags(File('test/fixtures/tags_fixture.jsonl')
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .transform(const BulkLineDecoder()));
+    await tagIngestor.ingestTags(
+      File('test/fixtures/tags_fixture.jsonl')
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .transform(const BulkLineDecoder()),
+    );
     await tagIngestor.finalize();
     await tagDb.close();
 
     db = AppDatabase.local(
-        file: File('${tmp.path}/cards.db'), tagPack: tagsFile);
+      file: File('${tmp.path}/cards.db'),
+      tagPack: tagsFile,
+    );
     final ingestor = Ingestor(db);
-    await ingestor.ingestCards(File('test/fixtures/cards_fixture.jsonl')
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .transform(const BulkLineDecoder()));
+    await ingestor.ingestCards(
+      File('test/fixtures/cards_fixture.jsonl')
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .transform(const BulkLineDecoder()),
+    );
     await ingestor.finalize();
   });
 
@@ -53,11 +59,15 @@ void main() {
   });
 
   Future<List<String>> search(String query, {bool tagsInstalled = true}) async {
-    final compiled = SqlCompiler.compile(ScryfallQueryParser.parse(query),
-        tagsInstalled: tagsInstalled);
+    final compiled = SqlCompiler.compile(
+      ScryfallQueryParser.parse(query),
+      tagsInstalled: tagsInstalled,
+    );
     final rows = await db
-        .customSelect(compiled.selectSql(limit: 100, offset: 0),
-            variables: [for (final p in compiled.params) Variable(p)])
+        .customSelect(
+          compiled.selectSql(limit: 100, offset: 0),
+          variables: [for (final p in compiled.params) Variable(p)],
+        )
         .get();
     return rows.map((r) => r.data['name'] as String).toList();
   }
@@ -79,15 +89,20 @@ void main() {
         'Fire // Ice', // tagged on the root itself
         'Lightning Bolt', // child tag
       ]);
-      expect(await search('otag:burn'),
-          ['Bonecrusher Giant // Stomp', 'Lightning Bolt']);
-      expect(
-          await search('otag:burn-any-target'), ['Bonecrusher Giant // Stomp']);
+      expect(await search('otag:burn'), [
+        'Bonecrusher Giant // Stomp',
+        'Lightning Bolt',
+      ]);
+      expect(await search('otag:burn-any-target'), [
+        'Bonecrusher Giant // Stomp',
+      ]);
     });
 
     test('matches tag aliases (including descendants)', () async {
-      expect(await search('otag:damage-spell'),
-          ['Bonecrusher Giant // Stomp', 'Lightning Bolt']);
+      expect(await search('otag:damage-spell'), [
+        'Bonecrusher Giant // Stomp',
+        'Lightning Bolt',
+      ]);
     });
 
     test('normalizes quoted, spaced, cased input', () async {
@@ -96,10 +111,13 @@ void main() {
 
     test('combines with other predicates and negation', () async {
       // Stomp (Bonecrusher's adventure face) is an instant too.
-      expect(await search('otag:burn t:instant'),
-          ['Bonecrusher Giant // Stomp', 'Lightning Bolt']);
-      expect(await search('otag:burn t:creature'),
-          ['Bonecrusher Giant // Stomp']);
+      expect(await search('otag:burn t:instant'), [
+        'Bonecrusher Giant // Stomp',
+        'Lightning Bolt',
+      ]);
+      expect(await search('otag:burn t:creature'), [
+        'Bonecrusher Giant // Stomp',
+      ]);
       expect(await search('otag:card-advantage -otag:burn'), ['Griselbrand']);
     });
 
@@ -114,16 +132,28 @@ void main() {
 
     test('errors helpfully when the tag pack is not installed', () {
       expect(
-          () => search('otag:removal', tagsInstalled: false),
-          throwsA(isA<QuerySemanticError>().having((e) => e.message, 'message',
-              contains('Card data screen'))));
+        () => search('otag:removal', tagsInstalled: false),
+        throwsA(
+          isA<QuerySemanticError>().having(
+            (e) => e.message,
+            'message',
+            contains('Card data screen'),
+          ),
+        ),
+      );
     });
 
     test('otag is a known field for suggestions', () {
       expect(
-          () => search('otga:removal'),
-          throwsA(isA<QuerySemanticError>()
-              .having((e) => e.message, 'message', contains('otag'))));
+        () => search('otga:removal'),
+        throwsA(
+          isA<QuerySemanticError>().having(
+            (e) => e.message,
+            'message',
+            contains('otag'),
+          ),
+        ),
+      );
     });
   });
 
@@ -147,22 +177,28 @@ void main() {
 
   group('CardRepository.tagsForCard', () {
     Future<String> oracleIdOf(String name) async {
-      final row = await db.customSelect(
-          'SELECT oracle_id FROM cards WHERE name = ?',
-          variables: [Variable(name)]).getSingle();
+      final row = await db
+          .customSelect(
+            'SELECT oracle_id FROM cards WHERE name = ?',
+            variables: [Variable(name)],
+          )
+          .getSingle();
       return row.data['oracle_id'] as String;
     }
 
     test('returns the card\'s tags sorted by label', () async {
-      final tags =
-          await CardRepository(db).tagsForCard(await oracleIdOf('Lightning Bolt'));
+      final tags = await CardRepository(
+        db,
+      ).tagsForCard(await oracleIdOf('Lightning Bolt'));
       expect(tags, [('burn', 'burn'), ('card-advantage', 'card advantage')]);
     });
 
     test('an untagged card yields an empty list', () async {
       // Tarmogoyf carries only an illustration tag, which ingest drops.
-      expect(await CardRepository(db).tagsForCard(await oracleIdOf('Tarmogoyf')),
-          isEmpty);
+      expect(
+        await CardRepository(db).tagsForCard(await oracleIdOf('Tarmogoyf')),
+        isEmpty,
+      );
     });
 
     test('an unknown oracle id yields an empty list', () async {

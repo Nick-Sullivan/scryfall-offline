@@ -59,9 +59,12 @@ Future<void> tagIngestIsolateMain(TagIngestRequest req) async {
     stagingFile.parent.createSync(recursive: true);
 
     db = TagDatabase.local(file: stagingFile, staging: true);
-    final ingestor = TagIngestor(db, onProgress: (n) {
-      port.send({'type': 'tags', 'n': n});
-    });
+    final ingestor = TagIngestor(
+      db,
+      onProgress: (n) {
+        port.send({'type': 'tags', 'n': n});
+      },
+    );
 
     await ingestor.ingestTags(_decode(req.tagsPath, req.tagsGzip));
     await ingestor.ingestTags(_decode(req.artTagsPath, req.artTagsGzip));

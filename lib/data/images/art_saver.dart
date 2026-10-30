@@ -32,8 +32,9 @@ const _channel = MethodChannel('scryfall_app/art_folder');
 class ArtFolderChannel {
   /// Opens the picker in [current] when given, otherwise in Pictures.
   static Future<ArtFolder?> pickFolder({ArtFolder? current}) async {
-    final r = await _channel.invokeMapMethod<String, String>(
-        'pickFolder', {'current': current?.uri});
+    final r = await _channel.invokeMapMethod<String, String>('pickFolder', {
+      'current': current?.uri,
+    });
     return r == null ? null : (uri: r['uri']!, name: r['name']!);
   }
 
@@ -71,10 +72,13 @@ class SafArtSaver implements ArtSaver {
 
   /// File name → document uri, listed once and kept current as files are
   /// written. Memoized as a Future so concurrent first saves share one list.
-  late final Future<Map<String, String>> _docs = _guard(() async =>
-      await _channel.invokeMapMethod<String, String>(
-          'listFiles', {'uri': folder.uri}) ??
-      {});
+  late final Future<Map<String, String>> _docs = _guard(
+    () async =>
+        await _channel.invokeMapMethod<String, String>('listFiles', {
+          'uri': folder.uri,
+        }) ??
+        {},
+  );
 
   @override
   String get label => artFolderPath(folder);
@@ -86,12 +90,14 @@ class SafArtSaver implements ArtSaver {
   Future<void> save(String name, Uint8List png) async {
     final file = '$name.png';
     final docs = await _docs;
-    final uri = await _guard(() => _channel.invokeMethod<String>('writeFile', {
-          'uri': folder.uri,
-          'name': file,
-          'existing': docs[file],
-          'bytes': png,
-        }));
+    final uri = await _guard(
+      () => _channel.invokeMethod<String>('writeFile', {
+        'uri': folder.uri,
+        'name': file,
+        'existing': docs[file],
+        'bytes': png,
+      }),
+    );
     if (uri != null) docs[file] = uri;
   }
 

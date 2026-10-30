@@ -26,35 +26,41 @@ class AppDatabase extends _$AppDatabase {
   /// including the read pool). Attach-only-if-exists keeps the file's
   /// existence meaningful as the "pack installed" sentinel — ATTACH would
   /// otherwise create an empty database.
-  factory AppDatabase.background(File file, {File? tagPack}) =>
-      AppDatabase(NativeDatabase.createInBackground(
-        file,
-        readPool: 4,
-        setup: (db) {
-          setupSqlite(db);
-          db.execute('PRAGMA journal_mode = WAL;');
-          db.execute('PRAGMA busy_timeout = 5000;');
-          _attachTagPack(db, tagPack);
-        },
-      ));
+  factory AppDatabase.background(File file, {File? tagPack}) => AppDatabase(
+    NativeDatabase.createInBackground(
+      file,
+      readPool: 4,
+      setup: (db) {
+        setupSqlite(db);
+        db.execute('PRAGMA journal_mode = WAL;');
+        db.execute('PRAGMA busy_timeout = 5000;');
+        _attachTagPack(db, tagPack);
+      },
+    ),
+  );
 
   /// Same-isolate open. Used for the staging database inside the ingest
   /// isolate and for tests ([file] null = in-memory).
   factory AppDatabase.local({File? file, bool staging = false, File? tagPack}) {
     final executor = file == null
-        ? NativeDatabase.memory(setup: (db) {
-            setupSqlite(db);
-            _attachTagPack(db, tagPack);
-          })
-        : NativeDatabase(file, setup: (db) {
-            setupSqlite(db);
-            if (staging) {
-              // Disposable during ingest; deleted on any failure.
-              db.execute('PRAGMA journal_mode = OFF;');
-              db.execute('PRAGMA synchronous = OFF;');
-            }
-            _attachTagPack(db, tagPack);
-          });
+        ? NativeDatabase.memory(
+            setup: (db) {
+              setupSqlite(db);
+              _attachTagPack(db, tagPack);
+            },
+          )
+        : NativeDatabase(
+            file,
+            setup: (db) {
+              setupSqlite(db);
+              if (staging) {
+                // Disposable during ingest; deleted on any failure.
+                db.execute('PRAGMA journal_mode = OFF;');
+                db.execute('PRAGMA synchronous = OFF;');
+              }
+              _attachTagPack(db, tagPack);
+            },
+          );
     return AppDatabase(executor);
   }
 
@@ -69,55 +75,69 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await createSearchArtifacts();
-        },
-        onUpgrade: (m, from, to) async {
-          // Starts empty and fills on the next card-data update, which
-          // updateCheckProvider offers for databases built before v2.
-          if (from < 2) await m.createTable(printArt);
-          await createSearchArtifacts();
-        },
-      );
+    onCreate: (m) async {
+      await m.createAll();
+      await createSearchArtifacts();
+    },
+    onUpgrade: (m, from, to) async {
+      // Starts empty and fills on the next card-data update, which
+      // updateCheckProvider offers for databases built before v2.
+      if (from < 2) await m.createTable(printArt);
+      await createSearchArtifacts();
+    },
+  );
 
   /// Indexes and external-content FTS5 tables (trigram tokenizer so that
   /// Scryfall-style substring matches use the index). Rebuilt wholesale
   /// after bulk ingest — no sync triggers needed.
   Future<void> createSearchArtifacts() async {
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_faces_oracle ON faces (oracle_id)');
+      'CREATE INDEX IF NOT EXISTS idx_faces_oracle ON faces (oracle_id)',
+    );
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_prints_oracle ON prints (oracle_id)');
+      'CREATE INDEX IF NOT EXISTS idx_prints_oracle ON prints (oracle_id)',
+    );
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_prints_set ON prints (set_code)');
-    await customStatement('CREATE INDEX IF NOT EXISTS idx_print_art_illustration '
-        'ON print_art (illustration_id)');
+      'CREATE INDEX IF NOT EXISTS idx_prints_set ON prints (set_code)',
+    );
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_rulings_oracle ON rulings (oracle_id)');
+      'CREATE INDEX IF NOT EXISTS idx_print_art_illustration '
+      'ON print_art (illustration_id)',
+    );
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_cards_name ON cards (name COLLATE NOCASE)');
-    await customStatement('CREATE VIRTUAL TABLE IF NOT EXISTS face_name_fts '
-        "USING fts5(name, content='faces', content_rowid='id', tokenize='trigram')");
-    await customStatement('CREATE VIRTUAL TABLE IF NOT EXISTS face_text_fts '
-        "USING fts5(oracle_text, type_line, content='faces', content_rowid='id', tokenize='trigram')");
+      'CREATE INDEX IF NOT EXISTS idx_rulings_oracle ON rulings (oracle_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_cards_name ON cards (name COLLATE NOCASE)',
+    );
+    await customStatement(
+      'CREATE VIRTUAL TABLE IF NOT EXISTS face_name_fts '
+      "USING fts5(name, content='faces', content_rowid='id', tokenize='trigram')",
+    );
+    await customStatement(
+      'CREATE VIRTUAL TABLE IF NOT EXISTS face_text_fts '
+      "USING fts5(oracle_text, type_line, content='faces', content_rowid='id', tokenize='trigram')",
+    );
   }
 
   /// Meta entries of the attached tag pack. Only call when the pack is
   /// installed (tags.db exists and was attached at open).
   Future<Map<String, String>> tagPackMetaEntries() async {
-    final rows =
-        await customSelect('SELECT key, value FROM tagdb.tag_pack_meta').get();
+    final rows = await customSelect(
+      'SELECT key, value FROM tagdb.tag_pack_meta',
+    ).get();
     return {
-      for (final r in rows) r.read<String>('key'): r.read<String>('value')
+      for (final r in rows) r.read<String>('key'): r.read<String>('value'),
     };
   }
 
   Future<void> rebuildFtsIndexes() async {
     await customStatement(
-        "INSERT INTO face_name_fts(face_name_fts) VALUES('rebuild')");
+      "INSERT INTO face_name_fts(face_name_fts) VALUES('rebuild')",
+    );
     await customStatement(
-        "INSERT INTO face_text_fts(face_text_fts) VALUES('rebuild')");
+      "INSERT INTO face_text_fts(face_text_fts) VALUES('rebuild')",
+    );
   }
 }
 

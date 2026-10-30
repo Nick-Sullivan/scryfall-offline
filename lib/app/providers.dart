@@ -28,12 +28,15 @@ import '../search/compiler/sql_compiler.dart';
 import '../search/parser/grammar.dart';
 
 /// Overridden in main() after platform directories resolve.
-final dbFilesProvider =
-    Provider<DbFiles>((ref) => throw UnimplementedError('set in main()'));
-final appVersionProvider =
-    Provider<String>((ref) => throw UnimplementedError('set in main()'));
+final dbFilesProvider = Provider<DbFiles>(
+  (ref) => throw UnimplementedError('set in main()'),
+);
+final appVersionProvider = Provider<String>(
+  (ref) => throw UnimplementedError('set in main()'),
+);
 final prefsProvider = Provider<SharedPreferences>(
-    (ref) => throw UnimplementedError('set in main()'));
+  (ref) => throw UnimplementedError('set in main()'),
+);
 
 final httpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
@@ -92,8 +95,9 @@ class DatabaseManager extends Notifier<AppDatabase?> {
   }
 }
 
-final databaseProvider =
-    NotifierProvider<DatabaseManager, AppDatabase?>(DatabaseManager.new);
+final databaseProvider = NotifierProvider<DatabaseManager, AppDatabase?>(
+  DatabaseManager.new,
+);
 
 /// Whether card data is installed, for the router's onboarding redirect.
 /// Unlike [databaseProvider], it stays true while the DB is briefly closed
@@ -106,8 +110,9 @@ class HasCardDataNotifier extends Notifier<bool> {
   void set(bool value) => state = value;
 }
 
-final hasCardDataProvider =
-    NotifierProvider<HasCardDataNotifier, bool>(HasCardDataNotifier.new);
+final hasCardDataProvider = NotifierProvider<HasCardDataNotifier, bool>(
+  HasCardDataNotifier.new,
+);
 
 final cardRepositoryProvider = Provider<CardRepository?>((ref) {
   final db = ref.watch(databaseProvider);
@@ -154,8 +159,9 @@ class SyncController extends Notifier<SyncProgress?> {
   void reset() => state = null;
 }
 
-final syncControllerProvider =
-    NotifierProvider<SyncController, SyncProgress?>(SyncController.new);
+final syncControllerProvider = NotifierProvider<SyncController, SyncProgress?>(
+  SyncController.new,
+);
 
 // ---------------------------------------------------------- offline images
 
@@ -198,13 +204,17 @@ class ImagePackController extends Notifier<ImagePackProgress?> {
     store.root.createSync(recursive: true);
     final missing = [
       for (final t in targets)
-        if (!store.fileFor(t.$1).existsSync()) t
+        if (!store.fileFor(t.$1).existsSync()) t,
     ];
     var done = targets.length - missing.length;
     var failed = 0;
     void publish(bool running) {
       state = ImagePackProgress(
-          total: targets.length, done: done, failed: failed, running: running);
+        total: targets.length,
+        done: done,
+        failed: failed,
+        running: running,
+      );
     }
 
     publish(true);
@@ -236,7 +246,8 @@ class ImagePackController extends Notifier<ImagePackProgress?> {
 
 final imagePackProvider =
     NotifierProvider<ImagePackController, ImagePackProgress?>(
-        ImagePackController.new);
+      ImagePackController.new,
+    );
 
 // ------------------------------------------------------------- art export
 
@@ -275,8 +286,9 @@ class ArtFolderNotifier extends Notifier<ArtFolder?> {
   }
 }
 
-final artFolderProvider =
-    NotifierProvider<ArtFolderNotifier, ArtFolder?>(ArtFolderNotifier.new);
+final artFolderProvider = NotifierProvider<ArtFolderNotifier, ArtFolder?>(
+  ArtFolderNotifier.new,
+);
 
 class ArtExportProgress {
   final String oracleId;
@@ -311,7 +323,10 @@ class ArtExportController extends Notifier<ArtExportProgress?> {
   ArtExportProgress? build() => null;
 
   Future<void> start(
-      String oracleId, List<ArtTarget> targets, ArtSaver saver) async {
+    String oracleId,
+    List<ArtTarget> targets,
+    ArtSaver saver,
+  ) async {
     if (state?.running == true) return;
     final client = ref.read(httpClientProvider);
     _cancel = false;
@@ -321,13 +336,14 @@ class ArtExportController extends Notifier<ArtExportProgress?> {
     var folderLost = false;
     void publish(bool running) {
       state = ArtExportProgress(
-          oracleId: oracleId,
-          saver: saver,
-          total: targets.length,
-          done: done,
-          failed: failed,
-          running: running,
-          folderLost: folderLost);
+        oracleId: oracleId,
+        saver: saver,
+        total: targets.length,
+        done: done,
+        failed: failed,
+        running: running,
+        folderLost: folderLost,
+      );
     }
 
     publish(true);
@@ -364,7 +380,8 @@ class ArtExportController extends Notifier<ArtExportProgress?> {
 
 final artExportProvider =
     NotifierProvider<ArtExportController, ArtExportProgress?>(
-        ArtExportController.new);
+      ArtExportController.new,
+    );
 
 /// (downloaded, total) for the data screen's idle status line.
 final imagePackStatusProvider = FutureProvider<(int, int)>((ref) async {
@@ -410,8 +427,11 @@ class TagPackController extends Notifier<TagPackProgress?> {
     final files = ref.read(dbFilesProvider);
     final client = ref.read(httpClientProvider);
     final appVersion = ref.read(appVersionProvider);
-    void publish(String label, {double? fraction}) =>
-        state = TagPackProgress(label: label, fraction: fraction, running: true);
+    void publish(String label, {double? fraction}) => state = TagPackProgress(
+      label: label,
+      fraction: fraction,
+      running: true,
+    );
 
     final download = File(p.join(files.syncDir.path, 'oracle_tags.jsonl.gz'));
     final artDownload = File(p.join(files.syncDir.path, 'art_tags.jsonl.gz'));
@@ -423,21 +443,26 @@ class TagPackController extends Notifier<TagPackProgress?> {
       files.syncDir.createSync(recursive: true);
       Future<void> fetch(BulkFileInfo file, File dest, String label) {
         var lastEmit = 0;
-        return downloadFile(client, file.downloadUri, dest,
-            headers: scryfallHeaders(appVersion), onProgress: (recv, total) {
-          if (recv - lastEmit > 256 * 1024 || recv == total) {
-            lastEmit = recv;
-            publish(label, fraction: total == null ? null : recv / total);
-          }
-        });
+        return downloadFile(
+          client,
+          file.downloadUri,
+          dest,
+          headers: scryfallHeaders(appVersion),
+          onProgress: (recv, total) {
+            if (recv - lastEmit > 256 * 1024 || recv == total) {
+              lastEmit = recv;
+              publish(label, fraction: total == null ? null : recv / total);
+            }
+          },
+        );
       }
 
       await fetch(info.oracle, download, 'Downloading oracle tags…');
       await fetch(info.art, artDownload, 'Downloading art tags…');
 
       publish('Importing tags…');
-      final done = Completer<
-          ({int tags, int taggings, int artTags, int artTaggings})>();
+      final done =
+          Completer<({int tags, int taggings, int artTags, int artTaggings})>();
       final port = ReceivePort();
       port.listen((msg) {
         final map = msg as Map;
@@ -471,12 +496,16 @@ class TagPackController extends Notifier<TagPackProgress?> {
         );
         final stats = await done.future;
         if (stats.tags < _minTags || stats.taggings < _minTaggings) {
-          throw StateError('ingest produced only ${stats.tags} tags — '
-              'refusing to install');
+          throw StateError(
+            'ingest produced only ${stats.tags} tags — '
+            'refusing to install',
+          );
         }
         if (stats.artTags < _minTags || stats.artTaggings < _minTaggings) {
-          throw StateError('ingest produced only ${stats.artTags} art tags — '
-              'refusing to install');
+          throw StateError(
+            'ingest produced only ${stats.artTags} art tags — '
+            'refusing to install',
+          );
         }
       } finally {
         port.close();
@@ -510,11 +539,13 @@ class TagPackController extends Notifier<TagPackProgress?> {
 }
 
 final tagPackProvider = NotifierProvider<TagPackController, TagPackProgress?>(
-    TagPackController.new);
+  TagPackController.new,
+);
 
 typedef TagPackStatus = ({
   int tags,
   int taggings,
+
   /// Null for a pack installed before art tags existed (no art tables).
   int? artTags,
   String? fetchedAt,
@@ -536,8 +567,10 @@ final tagPackStatusProvider = FutureProvider<TagPackStatus?>((ref) async {
 
 /// Whether `atag:` can run: the installed tag pack has art tags. Older
 /// oracle-only packs lack the art tables entirely.
-final artTagsInstalledProvider = FutureProvider<bool>((ref) async =>
-    (await ref.watch(tagPackStatusProvider.future))?.artTags != null);
+final artTagsInstalledProvider = FutureProvider<bool>(
+  (ref) async =>
+      (await ref.watch(tagPackStatusProvider.future))?.artTags != null,
+);
 
 /// Whether the card database records illustrations per print (schema v2+).
 /// Databases built before that need a card-data update for `atag:`.
@@ -569,13 +602,17 @@ Future<int?> _currentSetsTotal(Ref ref, {required bool force}) async {
       return cached;
     }
   }
-  final api = BulkApi(ref.read(httpClientProvider),
-      appVersion: ref.read(appVersionProvider));
+  final api = BulkApi(
+    ref.read(httpClientProvider),
+    appVersion: ref.read(appVersionProvider),
+  );
   try {
     final total = await api.fetchSetsCardTotal();
     await prefs.setInt(UpdatePrefs.checkTotal, total);
     await prefs.setString(
-        UpdatePrefs.checkAt, DateTime.now().toUtc().toIso8601String());
+      UpdatePrefs.checkAt,
+      DateTime.now().toUtc().toIso8601String(),
+    );
     return total;
   } catch (_) {
     return cached; // offline — stale cache beats flip-flopping UI
@@ -627,8 +664,9 @@ class DismissedUpdateNotifier extends Notifier<int?> {
   }
 }
 
-final dismissedUpdateProvider =
-    NotifierProvider<DismissedUpdateNotifier, int?>(DismissedUpdateNotifier.new);
+final dismissedUpdateProvider = NotifierProvider<DismissedUpdateNotifier, int?>(
+  DismissedUpdateNotifier.new,
+);
 
 /// Drives the search-screen banner: new cards exist upstream and the user
 /// hasn't dismissed this particular total. Network-checked at most once
@@ -682,16 +720,15 @@ class SearchState {
     QueryError? error,
     bool clearError = false,
     bool clearTotal = false,
-  }) =>
-      SearchState(
-        query: query ?? this.query,
-        items: items ?? this.items,
-        total: clearTotal ? null : (total ?? this.total),
-        loading: loading ?? this.loading,
-        loadingMore: loadingMore ?? this.loadingMore,
-        reachedEnd: reachedEnd ?? this.reachedEnd,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => SearchState(
+    query: query ?? this.query,
+    items: items ?? this.items,
+    total: clearTotal ? null : (total ?? this.total),
+    loading: loading ?? this.loading,
+    loadingMore: loadingMore ?? this.loadingMore,
+    reachedEnd: reachedEnd ?? this.reachedEnd,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 class SearchNotifier extends Notifier<SearchState> {
@@ -719,10 +756,12 @@ class SearchNotifier extends Notifier<SearchState> {
     // meta table reads as "not available".
     Future<bool> flag(FutureProvider<bool> p) =>
         ref.read(p.future).catchError((_) => false);
-    return SqlCompiler.compile(root,
-        tagsInstalled: ref.read(dbFilesProvider).tags.existsSync(),
-        artTagsInstalled: await flag(artTagsInstalledProvider),
-        artIndexed: await flag(artIndexedProvider));
+    return SqlCompiler.compile(
+      root,
+      tagsInstalled: ref.read(dbFilesProvider).tags.existsSync(),
+      artTagsInstalled: await flag(artTagsInstalledProvider),
+      artIndexed: await flag(artIndexedProvider),
+    );
   }
 
   Future<void> setQuery(String query) async {
@@ -745,8 +784,11 @@ class SearchNotifier extends Notifier<SearchState> {
     state = state.copyWith(query: query, loading: true, clearError: true);
 
     // Paint the first page as soon as it's ready — do NOT wait on the count.
-    final rows =
-        await repo.searchRows(compiled, limit: searchPageSize, offset: 0);
+    final rows = await repo.searchRows(
+      compiled,
+      limit: searchPageSize,
+      offset: 0,
+    );
     if (gen != _generation) return; // superseded by a newer keystroke
     state = SearchState(
       query: query,
@@ -774,8 +816,11 @@ class SearchNotifier extends Notifier<SearchState> {
     state = s.copyWith(loadingMore: true);
     try {
       final compiled = await _compile(s.query);
-      final rows = await repo.searchRows(compiled,
-          limit: searchPageSize, offset: s.items.length);
+      final rows = await repo.searchRows(
+        compiled,
+        limit: searchPageSize,
+        offset: s.items.length,
+      );
       if (gen != _generation) return;
       state = state.copyWith(
         items: [...s.items, ...rows],
@@ -789,8 +834,9 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 }
 
-final searchProvider =
-    NotifierProvider<SearchNotifier, SearchState>(SearchNotifier.new);
+final searchProvider = NotifierProvider<SearchNotifier, SearchState>(
+  SearchNotifier.new,
+);
 
 // ---------------------------------------------------------------- filters
 
@@ -869,26 +915,25 @@ class FilterState {
     bool clearSet = false,
     String? sort,
     bool? sortAscending,
-  }) =>
-      FilterState(
-        nameText: nameText ?? this.nameText,
-        types: types ?? this.types,
-        oracleText: oracleText ?? this.oracleText,
-        otags: otags ?? this.otags,
-        atags: atags ?? this.atags,
-        colors: colors ?? this.colors,
-        colorMode: colorMode ?? this.colorMode,
-        identity: identity ?? this.identity,
-        mv: mv ?? this.mv,
-        pow: pow ?? this.pow,
-        tou: tou ?? this.tou,
-        format: clearFormat ? null : (format ?? this.format),
-        rarities: rarities ?? this.rarities,
-        setCode: clearSet ? null : (setCode ?? this.setCode),
-        setLabel: clearSet ? null : (setLabel ?? this.setLabel),
-        sort: sort ?? this.sort,
-        sortAscending: sortAscending ?? this.sortAscending,
-      );
+  }) => FilterState(
+    nameText: nameText ?? this.nameText,
+    types: types ?? this.types,
+    oracleText: oracleText ?? this.oracleText,
+    otags: otags ?? this.otags,
+    atags: atags ?? this.atags,
+    colors: colors ?? this.colors,
+    colorMode: colorMode ?? this.colorMode,
+    identity: identity ?? this.identity,
+    mv: mv ?? this.mv,
+    pow: pow ?? this.pow,
+    tou: tou ?? this.tou,
+    format: clearFormat ? null : (format ?? this.format),
+    rarities: rarities ?? this.rarities,
+    setCode: clearSet ? null : (setCode ?? this.setCode),
+    setLabel: clearSet ? null : (setLabel ?? this.setLabel),
+    sort: sort ?? this.sort,
+    sortAscending: sortAscending ?? this.sortAscending,
+  );
 
   String toSyntax() {
     final parts = <String>[];
@@ -925,9 +970,11 @@ class FilterState {
     range('tou', tou, statMax);
     if (format != null) parts.add('f:$format');
     if (rarities.isNotEmpty) {
-      parts.add(rarities.length == 1
-          ? 'r:${rarities.first}'
-          : '(${rarities.map((r) => 'r:$r').join(' or ')})');
+      parts.add(
+        rarities.length == 1
+            ? 'r:${rarities.first}'
+            : '(${rarities.map((r) => 'r:$r').join(' or ')})',
+      );
     }
     if (setCode != null) parts.add('s:$setCode');
     if (sort != 'name' || !sortAscending) {
@@ -942,67 +989,65 @@ class FilterState {
   /// Stray quotes in unquoted words are dropped so a half-typed quote can't
   /// produce unparseable syntax.
   static List<String> _terms(String text) => [
-        for (final m in RegExp(r'"([^"]*)"|(\S+)').allMatches(text))
-          if (((m.group(1) ?? m.group(2))!).replaceAll('"', '').trim()
-              case final t when t.isNotEmpty)
-            t
-      ];
+    for (final m in RegExp(r'"([^"]*)"|(\S+)').allMatches(text))
+      if (((m.group(1) ?? m.group(2))!).replaceAll('"', '').trim() case final t
+          when t.isNotEmpty)
+        t,
+  ];
 
   Map<String, dynamic> toJson() => {
-        'nameText': nameText,
-        'types': types.toList(),
-        'oracleText': oracleText,
-        'otags': otags,
-        'atags': atags,
-        'colors': colors.toList(),
-        'colorMode': colorMode,
-        'identity': identity.toList(),
-        'mvStart': mv.start,
-        'mvEnd': mv.end,
-        'powStart': pow.start,
-        'powEnd': pow.end,
-        'touStart': tou.start,
-        'touEnd': tou.end,
-        'format': format,
-        'rarities': rarities.toList(),
-        'setCode': setCode,
-        'setLabel': setLabel,
-        'sort': sort,
-        'sortAscending': sortAscending,
-      };
+    'nameText': nameText,
+    'types': types.toList(),
+    'oracleText': oracleText,
+    'otags': otags,
+    'atags': atags,
+    'colors': colors.toList(),
+    'colorMode': colorMode,
+    'identity': identity.toList(),
+    'mvStart': mv.start,
+    'mvEnd': mv.end,
+    'powStart': pow.start,
+    'powEnd': pow.end,
+    'touStart': tou.start,
+    'touEnd': tou.end,
+    'format': format,
+    'rarities': rarities.toList(),
+    'setCode': setCode,
+    'setLabel': setLabel,
+    'sort': sort,
+    'sortAscending': sortAscending,
+  };
 
   static FilterState fromJson(Map<String, dynamic> json) => FilterState(
-        nameText: json['nameText'] as String? ?? '',
-        types: {...(json['types'] as List? ?? const []).cast<String>()},
-        oracleText: json['oracleText'] as String? ?? '',
-        otags: {
-          ...(json['otags'] as Map? ?? const {}).cast<String, String>()
-        },
-        atags: {
-          ...(json['atags'] as Map? ?? const {}).cast<String, String>()
-        },
-        colors: {...(json['colors'] as List? ?? const []).cast<String>()},
-        colorMode: json['colorMode'] as String? ?? ':',
-        identity: {...(json['identity'] as List? ?? const []).cast<String>()},
-        mv: _range(json, 'mv', mvMax),
-        pow: _range(json, 'pow', statMax),
-        tou: _range(json, 'tou', statMax),
-        format: json['format'] as String?,
-        rarities: {...(json['rarities'] as List? ?? const []).cast<String>()},
-        setCode: json['setCode'] as String?,
-        setLabel: json['setLabel'] as String?,
-        sort: json['sort'] as String? ?? 'name',
-        sortAscending: json['sortAscending'] as bool? ?? true,
-      );
+    nameText: json['nameText'] as String? ?? '',
+    types: {...(json['types'] as List? ?? const []).cast<String>()},
+    oracleText: json['oracleText'] as String? ?? '',
+    otags: {...(json['otags'] as Map? ?? const {}).cast<String, String>()},
+    atags: {...(json['atags'] as Map? ?? const {}).cast<String, String>()},
+    colors: {...(json['colors'] as List? ?? const []).cast<String>()},
+    colorMode: json['colorMode'] as String? ?? ':',
+    identity: {...(json['identity'] as List? ?? const []).cast<String>()},
+    mv: _range(json, 'mv', mvMax),
+    pow: _range(json, 'pow', statMax),
+    tou: _range(json, 'tou', statMax),
+    format: json['format'] as String?,
+    rarities: {...(json['rarities'] as List? ?? const []).cast<String>()},
+    setCode: json['setCode'] as String?,
+    setLabel: json['setLabel'] as String?,
+    sort: json['sort'] as String? ?? 'name',
+    sortAscending: json['sortAscending'] as bool? ?? true,
+  );
 
   /// Missing keys (filters saved before that slider existed) mean the full
   /// range.
   static RangeValues _range(
-          Map<String, dynamic> json, String key, double max) =>
-      RangeValues(
-        (json['${key}Start'] as num? ?? 0).toDouble(),
-        (json['${key}End'] as num? ?? max).toDouble(),
-      );
+    Map<String, dynamic> json,
+    String key,
+    double max,
+  ) => RangeValues(
+    (json['${key}Start'] as num? ?? 0).toDouble(),
+    (json['${key}End'] as num? ?? max).toDouble(),
+  );
 
   /// This filter with [section] back at its default — what switching the
   /// section off in settings does, so a hidden filter never applies.
@@ -1014,7 +1059,10 @@ class FilterState {
       FilterSection.rulesText => copyWith(oracleText: ''),
       FilterSection.oracleTags => copyWith(otags: const {}),
       FilterSection.artTags => copyWith(atags: const {}),
-      FilterSection.colors => copyWith(colors: const {}, colorMode: d.colorMode),
+      FilterSection.colors => copyWith(
+        colors: const {},
+        colorMode: d.colorMode,
+      ),
       FilterSection.identity => copyWith(identity: const {}),
       FilterSection.manaValue => copyWith(mv: d.mv),
       FilterSection.power => copyWith(pow: d.pow),
@@ -1022,8 +1070,10 @@ class FilterState {
       FilterSection.format => copyWith(clearFormat: true),
       FilterSection.rarity => copyWith(rarities: const {}),
       FilterSection.set => copyWith(clearSet: true),
-      FilterSection.sort =>
-        copyWith(sort: d.sort, sortAscending: d.sortAscending),
+      FilterSection.sort => copyWith(
+        sort: d.sort,
+        sortAscending: d.sortAscending,
+      ),
     };
   }
 
@@ -1093,7 +1143,7 @@ class HiddenFilterSectionsNotifier extends Notifier<Set<FilterSection>> {
     if (names == null) return defaultHidden;
     return {
       for (final s in FilterSection.values)
-        if (names.contains(s.name)) s
+        if (names.contains(s.name)) s,
     };
   }
 
@@ -1107,7 +1157,8 @@ class HiddenFilterSectionsNotifier extends Notifier<Set<FilterSection>> {
 
 final hiddenFilterSectionsProvider =
     NotifierProvider<HiddenFilterSectionsNotifier, Set<FilterSection>>(
-        HiddenFilterSectionsNotifier.new);
+      HiddenFilterSectionsNotifier.new,
+    );
 
 /// The filter applied on app start and by Reset, edited from the settings
 /// screen and persisted across launches.
@@ -1133,7 +1184,8 @@ class DefaultFilterNotifier extends Notifier<FilterState> {
 
 final defaultFilterProvider =
     NotifierProvider<DefaultFilterNotifier, FilterState>(
-        DefaultFilterNotifier.new);
+      DefaultFilterNotifier.new,
+    );
 
 class FilterNotifier extends Notifier<FilterState> {
   // Watching means a settings edit immediately becomes the active filter.
@@ -1144,8 +1196,9 @@ class FilterNotifier extends Notifier<FilterState> {
   void reset() => state = ref.read(defaultFilterProvider);
 }
 
-final filterProvider =
-    NotifierProvider<FilterNotifier, FilterState>(FilterNotifier.new);
+final filterProvider = NotifierProvider<FilterNotifier, FilterState>(
+  FilterNotifier.new,
+);
 
 // ---------------------------------------------------------- cards per row
 
@@ -1174,8 +1227,9 @@ class CardColumnsNotifier extends Notifier<int> {
   }
 }
 
-final cardColumnsProvider =
-    NotifierProvider<CardColumnsNotifier, int>(CardColumnsNotifier.new);
+final cardColumnsProvider = NotifierProvider<CardColumnsNotifier, int>(
+  CardColumnsNotifier.new,
+);
 
 // ----------------------------------------------------------- saved cards
 
@@ -1190,12 +1244,13 @@ class SavedCardsNotifier extends Notifier<List<String>> {
 
   bool isSaved(String oracleId) => state.contains(oracleId);
 
-  void toggle(String oracleId) => isSaved(oracleId)
-      ? remove(oracleId)
-      : _set([oracleId, ...state]);
+  void toggle(String oracleId) =>
+      isSaved(oracleId) ? remove(oracleId) : _set([oracleId, ...state]);
 
-  void remove(String oracleId) =>
-      _set([for (final id in state) if (id != oracleId) id]);
+  void remove(String oracleId) => _set([
+    for (final id in state)
+      if (id != oracleId) id,
+  ]);
 
   void clear() => _set(const []);
 
@@ -1205,11 +1260,13 @@ class SavedCardsNotifier extends Notifier<List<String>> {
   }
 }
 
-final savedCardsProvider =
-    NotifierProvider<SavedCardsNotifier, List<String>>(SavedCardsNotifier.new);
+final savedCardsProvider = NotifierProvider<SavedCardsNotifier, List<String>>(
+  SavedCardsNotifier.new,
+);
 
-final savedCardSummariesProvider =
-    FutureProvider<List<CardSummary>>((ref) async {
+final savedCardSummariesProvider = FutureProvider<List<CardSummary>>((
+  ref,
+) async {
   final ids = ref.watch(savedCardsProvider);
   final repo = ref.watch(cardRepositoryProvider);
   if (repo == null || ids.isEmpty) return const [];
@@ -1220,10 +1277,10 @@ final savedCardSummariesProvider =
 
 final cardDetailProvider = FutureProvider.autoDispose
     .family<CardDetail?, ({String oracleId, String? printId})>((ref, args) {
-  final repo = ref.watch(cardRepositoryProvider);
-  if (repo == null) return Future.value(null);
-  return repo.detail(args.oracleId, printId: args.printId);
-});
+      final repo = ref.watch(cardRepositoryProvider);
+      if (repo == null) return Future.value(null);
+      return repo.detail(args.oracleId, printId: args.printId);
+    });
 
 final allSetsProvider = FutureProvider<List<(String, String)>>((ref) async {
   final repo = ref.watch(cardRepositoryProvider);
@@ -1239,25 +1296,25 @@ final allTypesProvider = FutureProvider<List<String>>((ref) async {
 /// detail screen reads "empty" as "nothing to show" and omits the section.
 final cardTagsProvider = FutureProvider.autoDispose
     .family<List<(String, String)>, String>((ref, oracleId) async {
-  final repo = ref.watch(cardRepositoryProvider);
-  if (repo == null || !ref.watch(dbFilesProvider).tags.existsSync()) {
-    return const [];
-  }
-  return repo.tagsForCard(oracleId);
-});
+      final repo = ref.watch(cardRepositoryProvider);
+      if (repo == null || !ref.watch(dbFilesProvider).tags.existsSync()) {
+        return const [];
+      }
+      return repo.tagsForCard(oracleId);
+    });
 
 /// Art tags on one printing, or empty without an art-tag pack or card data
 /// that records illustrations — the detail screen then omits the section.
 final cardArtTagsProvider = FutureProvider.autoDispose
     .family<List<(String, String)>, String>((ref, printId) async {
-  final repo = ref.watch(cardRepositoryProvider);
-  if (repo == null ||
-      !await ref.watch(artTagsInstalledProvider.future) ||
-      !await ref.watch(artIndexedProvider.future)) {
-    return const [];
-  }
-  return repo.artTagsForPrint(printId);
-});
+      final repo = ref.watch(cardRepositoryProvider);
+      if (repo == null ||
+          !await ref.watch(artTagsInstalledProvider.future) ||
+          !await ref.watch(artIndexedProvider.future)) {
+        return const [];
+      }
+      return repo.artTagsForPrint(printId);
+    });
 
 /// Art tags for the filter sheet, or empty when the pack has none (not
 /// installed, or from before art tags) — which hides the section.

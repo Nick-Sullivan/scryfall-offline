@@ -19,8 +19,9 @@ class DetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detail =
-        ref.watch(cardDetailProvider((oracleId: oracleId, printId: printId)));
+    final detail = ref.watch(
+      cardDetailProvider((oracleId: oracleId, printId: printId)),
+    );
     // The offline pack stores the preferred print's front image; use it when
     // that's the print being shown.
     final local = printId == null
@@ -67,8 +68,11 @@ class _DownloadArtButton extends ConsumerWidget {
           next != null &&
           !next.running &&
           next.oracleId == oracleId) {
-        _showResult(ScaffoldMessenger.of(context), next,
-            ref.read(artFolderProvider.notifier));
+        _showResult(
+          ScaffoldMessenger.of(context),
+          next,
+          ref.read(artFolderProvider.notifier),
+        );
       }
     });
 
@@ -77,8 +81,9 @@ class _DownloadArtButton extends ConsumerWidget {
       final mine = export.oracleId == oracleId;
       return IconButton(
         tooltip: mine ? 'Cancel art download' : 'Another download is running',
-        onPressed:
-            mine ? () => ref.read(artExportProvider.notifier).cancel() : null,
+        onPressed: mine
+            ? () => ref.read(artExportProvider.notifier).cancel()
+            : null,
         icon: SizedBox.square(
           dimension: 20,
           child: CircularProgressIndicator(
@@ -99,35 +104,50 @@ class _DownloadArtButton extends ConsumerWidget {
 
   /// The done message: an Open action on success, or a way to pick a new
   /// folder when the old one vanished mid-run.
-  static void _showResult(ScaffoldMessengerState messenger,
-      ArtExportProgress result, ArtFolderNotifier folders) {
+  static void _showResult(
+    ScaffoldMessengerState messenger,
+    ArtExportProgress result,
+    ArtFolderNotifier folders,
+  ) {
     if (result.folderLost) {
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Lost access to the save folder; choose it again'),
-        action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Lost access to the save folder; choose it again',
+          ),
+          action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
+        ),
+      );
       return;
     }
     final failed = result.failed > 0 ? ' (${result.failed} failed)' : '';
-    messenger.showSnackBar(SnackBar(
-      content: Text(
-          'Saved ${result.done} images to ${result.saver.label}$failed'),
-      action: SnackBarAction(
-        label: 'Open',
-        onPressed: () async {
-          if (!await result.saver.open()) {
-            messenger.showSnackBar(const SnackBar(
-                content: Text('No app on this device can open the folder')));
-          }
-        },
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Saved ${result.done} images to ${result.saver.label}$failed',
+        ),
+        action: SnackBarAction(
+          label: 'Open',
+          onPressed: () async {
+            if (!await result.saver.open()) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('No app on this device can open the folder'),
+                ),
+              );
+            }
+          },
+        ),
       ),
-    ));
+    );
   }
 
   /// Android: the remembered folder, or a fresh pick when there is none or
   /// its grant was revoked. iOS: photo-library access for the album.
   Future<ArtSaver?> _resolveSaver(
-      WidgetRef ref, ScaffoldMessengerState messenger) async {
+    WidgetRef ref,
+    ScaffoldMessengerState messenger,
+  ) async {
     if (Platform.isAndroid) {
       final folders = ref.read(artFolderProvider.notifier);
       var folder = ref.read(artFolderProvider);
@@ -136,11 +156,15 @@ class _DownloadArtButton extends ConsumerWidget {
       }
       return artSaverFor(folder);
     }
-    final allowed = await Gal.hasAccess(toAlbum: true) ||
+    final allowed =
+        await Gal.hasAccess(toAlbum: true) ||
         await Gal.requestAccess(toAlbum: true);
     if (!allowed) {
-      messenger.showSnackBar(const SnackBar(
-          content: Text('Photo access is needed to save card images')));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Photo access is needed to save card images'),
+        ),
+      );
       return null;
     }
     return artSaverFor(null);
@@ -160,16 +184,21 @@ class _DownloadArtButton extends ConsumerWidget {
       existing = await saver.existingNames();
     } on ArtFolderLostException {
       final folders = ref.read(artFolderProvider.notifier)..clear();
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Lost access to the save folder; choose it again'),
-        action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Lost access to the save folder; choose it again',
+          ),
+          action: SnackBarAction(label: 'Choose', onPressed: folders.pick),
+        ),
+      );
       return;
     }
     if (!context.mounted) return;
     if (targets.isEmpty) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('No images available for this card')));
+        const SnackBar(content: Text('No images available for this card')),
+      );
       return;
     }
 
@@ -240,8 +269,9 @@ class _ConfirmArtDialogState extends State<_ConfirmArtDialog> {
     final targets = widget.targets;
     final backs = targets.where((t) => t.name.endsWith(' (back)')).length;
     final printings = targets.length - backs;
-    final replacing =
-        targets.where((t) => _existing.contains('${t.name}.png')).length;
+    final replacing = targets
+        .where((t) => _existing.contains('${t.name}.png'))
+        .length;
 
     return AlertDialog(
       title: const Text('Download all art'),
@@ -249,8 +279,10 @@ class _ConfirmArtDialogState extends State<_ConfirmArtDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$printings ${printings == 1 ? 'printing' : 'printings'}'
-              '${backs > 0 ? ', front and back' : ''}'),
+          Text(
+            '$printings ${printings == 1 ? 'printing' : 'printings'}'
+            '${backs > 0 ? ', front and back' : ''}',
+          ),
           const SizedBox(height: 16),
           Text('Save to folder', style: theme.textTheme.labelMedium),
           const SizedBox(height: 4),
@@ -269,8 +301,9 @@ class _ConfirmArtDialogState extends State<_ConfirmArtDialog> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                  '$replacing already in this folder will be replaced.',
-                  style: theme.textTheme.bodySmall),
+                '$replacing already in this folder will be replaced.',
+                style: theme.textTheme.bodySmall,
+              ),
             ),
         ],
       ),
@@ -304,8 +337,7 @@ class _DetailBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (pages.isNotEmpty)
-          _ImagePager(pages: pages, localFirst: localFront),
+        if (pages.isNotEmpty) _ImagePager(pages: pages, localFirst: localFront),
         _artistLine(context, json, faces),
         const SizedBox(height: 16),
         for (final (i, face) in faces.indexed) ...[
@@ -322,8 +354,10 @@ class _DetailBody extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text('Printings (${card.printings.length})',
-                  style: Theme.of(context).textTheme.titleMedium),
+              child: Text(
+                'Printings (${card.printings.length})',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
             _DownloadArtButton(oracleId: card.oracleId),
           ],
@@ -339,8 +373,10 @@ class _DetailBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(r.publishedAt,
-                      style: Theme.of(context).textTheme.labelSmall),
+                  Text(
+                    r.publishedAt,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
                   Text(r.comment),
                 ],
               ),
@@ -355,7 +391,9 @@ class _DetailBody extends StatelessWidget {
   /// image otherwise. The face rides along so a failed image load can show
   /// the right face's text in the card slot instead.
   List<(String, Map<String, dynamic>)> _facePages(
-      Map<String, dynamic> json, List<Map<String, dynamic>> faces) {
+    Map<String, dynamic> json,
+    List<Map<String, dynamic>> faces,
+  ) {
     final topLevel =
         (json['image_uris'] as Map<String, dynamic>?)?['normal'] as String?;
     if (topLevel != null) return [(topLevel, faces.first)];
@@ -363,14 +401,18 @@ class _DetailBody extends StatelessWidget {
       for (final f in faces)
         if ((f['image_uris'] as Map<String, dynamic>?)?['normal']
             case final String uri)
-          (uri, f)
+          (uri, f),
     ];
   }
 
   /// Fan Content Policy: artist + © stays visible with the card image.
-  Widget _artistLine(BuildContext context, Map<String, dynamic> json,
-      List<Map<String, dynamic>> faces) {
-    final artist = json['artist'] as String? ??
+  Widget _artistLine(
+    BuildContext context,
+    Map<String, dynamic> json,
+    List<Map<String, dynamic>> faces,
+  ) {
+    final artist =
+        json['artist'] as String? ??
         faces.first['artist'] as String? ??
         'Unknown artist';
     return Padding(
@@ -429,8 +471,9 @@ class _OracleTags extends ConsumerWidget {
   /// Adds the tag to the active filter — rather than replacing it — so this
   /// composes with whatever the user already had, then returns to the results.
   void _search(BuildContext context, WidgetRef ref, String slug, String label) {
-    final next = ref.read(filterProvider).copyWith(
-        otags: {...ref.read(filterProvider).otags, slug: label});
+    final next = ref
+        .read(filterProvider)
+        .copyWith(otags: {...ref.read(filterProvider).otags, slug: label});
     ref.read(filterProvider.notifier).set(next);
     ref.read(searchProvider.notifier).setQuery(next.toSyntax());
     context.go('/');
@@ -480,8 +523,9 @@ class _ArtTags extends ConsumerWidget {
 
   /// Same as the oracle-tag chips: composes with the active filter.
   void _search(BuildContext context, WidgetRef ref, String slug, String label) {
-    final next = ref.read(filterProvider).copyWith(
-        atags: {...ref.read(filterProvider).atags, slug: label});
+    final next = ref
+        .read(filterProvider)
+        .copyWith(atags: {...ref.read(filterProvider).atags, slug: label});
     ref.read(filterProvider.notifier).set(next);
     ref.read(searchProvider.notifier).setQuery(next.toSyntax());
     context.go('/');
@@ -544,7 +588,8 @@ class _ImagePagerState extends State<_ImagePager> {
                               imageUrl: uri,
                               fit: BoxFit.contain,
                               placeholder: (_, __) => const Center(
-                                  child: CircularProgressIndicator()),
+                                child: CircularProgressIndicator(),
+                              ),
                               // Offline with no image pack — show the card's
                               // text in the card slot instead.
                               errorWidget: (_, __, ___) =>
@@ -570,8 +615,10 @@ class _ImagePagerState extends State<_ImagePager> {
         if (widget.pages.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text('Face ${_page + 1} of ${widget.pages.length}',
-                style: Theme.of(context).textTheme.labelSmall),
+            child: Text(
+              'Face ${_page + 1} of ${widget.pages.length}',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           ),
       ],
     );
@@ -611,25 +658,32 @@ class _FaceText extends StatelessWidget {
     final pt = face['power'] != null
         ? '${face['power']}/${face['toughness']}'
         : face['loyalty'] != null
-            ? 'Loyalty: ${face['loyalty']}'
-            : null;
+        ? 'Loyalty: ${face['loyalty']}'
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: Text(face['name'] as String? ?? '',
-                  style: theme.textTheme.titleMedium),
+              child: Text(
+                face['name'] as String? ?? '',
+                style: theme.textTheme.titleMedium,
+              ),
             ),
-            Text(face['mana_cost'] as String? ?? '',
-                style: theme.textTheme.bodyMedium),
+            Text(
+              face['mana_cost'] as String? ?? '',
+              style: theme.textTheme.bodyMedium,
+            ),
           ],
         ),
         const SizedBox(height: 4),
-        Text(face['type_line'] as String? ?? '',
-            style: theme.textTheme.bodyMedium!
-                .copyWith(fontStyle: FontStyle.italic)),
+        Text(
+          face['type_line'] as String? ?? '',
+          style: theme.textTheme.bodyMedium!.copyWith(
+            fontStyle: FontStyle.italic,
+          ),
+        ),
         if ((face['oracle_text'] as String?)?.isNotEmpty ?? false)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -638,9 +692,12 @@ class _FaceText extends StatelessWidget {
         if ((face['flavor_text'] as String?)?.isNotEmpty ?? false)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(face['flavor_text'] as String,
-                style: theme.textTheme.bodySmall!
-                    .copyWith(fontStyle: FontStyle.italic)),
+            child: Text(
+              face['flavor_text'] as String,
+              style: theme.textTheme.bodySmall!.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
         if (pt != null)
           Padding(
@@ -658,8 +715,14 @@ class _LegalitiesGrid extends StatelessWidget {
   const _LegalitiesGrid({required this.packed});
 
   static const _shown = [
-    'standard', 'pioneer', 'modern', 'legacy',
-    'vintage', 'pauper', 'commander', 'brawl',
+    'standard',
+    'pioneer',
+    'modern',
+    'legacy',
+    'vintage',
+    'pauper',
+    'commander',
+    'brawl',
   ];
 
   @override
@@ -667,9 +730,7 @@ class _LegalitiesGrid extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: [
-        for (final format in _shown) _chip(context, format),
-      ],
+      children: [for (final format in _shown) _chip(context, format)],
     );
   }
 
@@ -692,8 +753,10 @@ class _LegalitiesGrid extends StatelessWidget {
               color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(label,
-                style: TextStyle(fontSize: 12, color: color.shade700)),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12, color: color.shade700),
+            ),
           ),
         ],
       ),
@@ -719,8 +782,8 @@ class _PrintingsList extends StatelessWidget {
           final print = card.printings[i];
           final selected = print.id == currentPrintId;
           return InkWell(
-            onTap: () => context.replace(
-                '/card/${card.oracleId}?print=${print.id}'),
+            onTap: () =>
+                context.replace('/card/${card.oracleId}?print=${print.id}'),
             child: Container(
               width: 120,
               padding: const EdgeInsets.all(4),

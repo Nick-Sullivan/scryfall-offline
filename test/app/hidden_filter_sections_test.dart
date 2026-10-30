@@ -8,8 +8,9 @@ void main() {
 
   Future<ProviderContainer> makeContainer() async {
     final prefs = await SharedPreferences.getInstance();
-    final container =
-        ProviderContainer(overrides: [prefsProvider.overrideWithValue(prefs)]);
+    final container = ProviderContainer(
+      overrides: [prefsProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
     return container;
   }
@@ -20,36 +21,48 @@ void main() {
 
     final hidden = container.read(hiddenFilterSectionsProvider);
     expect(
-        {for (final s in FilterSection.values) if (!hidden.contains(s)) s}, {
-      FilterSection.name,
-      FilterSection.types,
-      FilterSection.rulesText,
-      FilterSection.colors,
-      FilterSection.identity,
-      FilterSection.sort,
-    });
+      {
+        for (final s in FilterSection.values)
+          if (!hidden.contains(s)) s,
+      },
+      {
+        FilterSection.name,
+        FilterSection.types,
+        FilterSection.rulesText,
+        FilterSection.colors,
+        FilterSection.identity,
+        FilterSection.sort,
+      },
+    );
   });
 
   test('hiding and re-showing persists by section name', () async {
-    SharedPreferences.setMockInitialValues({'hiddenFilterSections': <String>[]});
+    SharedPreferences.setMockInitialValues({
+      'hiddenFilterSections': <String>[],
+    });
     final container = await makeContainer();
     final notifier = container.read(hiddenFilterSectionsProvider.notifier);
 
     notifier.setVisible(FilterSection.rarity, false);
     notifier.setVisible(FilterSection.artTags, false);
-    expect(container.read(hiddenFilterSectionsProvider),
-        {FilterSection.rarity, FilterSection.artTags});
+    expect(container.read(hiddenFilterSectionsProvider), {
+      FilterSection.rarity,
+      FilterSection.artTags,
+    });
 
     notifier.setVisible(FilterSection.rarity, true);
-    expect(container.read(hiddenFilterSectionsProvider),
-        {FilterSection.artTags});
+    expect(container.read(hiddenFilterSectionsProvider), {
+      FilterSection.artTags,
+    });
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getStringList('hiddenFilterSections'), ['artTags']);
   });
 
   test('an empty saved list means everything shown', () async {
-    SharedPreferences.setMockInitialValues({'hiddenFilterSections': <String>[]});
+    SharedPreferences.setMockInitialValues({
+      'hiddenFilterSections': <String>[],
+    });
     final container = await makeContainer();
 
     expect(container.read(hiddenFilterSectionsProvider), isEmpty);
@@ -61,7 +74,9 @@ void main() {
     });
     final container = await makeContainer();
 
-    expect(container.read(hiddenFilterSectionsProvider),
-        {FilterSection.power, FilterSection.sort});
+    expect(container.read(hiddenFilterSectionsProvider), {
+      FilterSection.power,
+      FilterSection.sort,
+    });
   });
 }

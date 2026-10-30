@@ -25,8 +25,7 @@ class ImageStore {
   /// Downloads one image; returns false on any failure (caller counts and
   /// moves on — a re-run retries missing files). Writes via a temp file so
   /// an interrupted download never leaves a truncated image behind.
-  Future<bool> download(
-      http.Client client, String oracleId, String url) async {
+  Future<bool> download(http.Client client, String oracleId, String url) async {
     final tmp = File('${fileFor(oracleId).path}.part');
     try {
       final response = await client.get(Uri.parse(url));

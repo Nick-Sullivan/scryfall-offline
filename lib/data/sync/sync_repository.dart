@@ -59,21 +59,34 @@ class SyncRepository {
       } catch (_) {}
 
       files.syncDir.createSync(recursive: true);
-      final cardsFile = File(p.join(files.syncDir.path,
-          index.defaultCards.isGzip ? 'cards.jsonl.gz' : 'cards.json'));
-      final rulingsFile = File(p.join(files.syncDir.path,
-          index.rulings.isGzip ? 'rulings.jsonl.gz' : 'rulings.json'));
+      final cardsFile = File(
+        p.join(
+          files.syncDir.path,
+          index.defaultCards.isGzip ? 'cards.jsonl.gz' : 'cards.json',
+        ),
+      );
+      final rulingsFile = File(
+        p.join(
+          files.syncDir.path,
+          index.rulings.isGzip ? 'rulings.jsonl.gz' : 'rulings.json',
+        ),
+      );
 
       var lastEmit = 0;
       Future<void> download(BulkFileInfo info, File target, String label) =>
-          downloadFile(client, info.downloadUri, target,
-              headers: scryfallHeaders(appVersion), onProgress: (recv, total) {
-            // Throttle to ~every 256 KB so the UI isn't flooded.
-            if (recv - lastEmit > 256 * 1024 || recv == total) {
-              lastEmit = recv;
-              out.add(SyncDownloading(label, recv, total));
-            }
-          });
+          downloadFile(
+            client,
+            info.downloadUri,
+            target,
+            headers: scryfallHeaders(appVersion),
+            onProgress: (recv, total) {
+              // Throttle to ~every 256 KB so the UI isn't flooded.
+              if (recv - lastEmit > 256 * 1024 || recv == total) {
+                lastEmit = recv;
+                out.add(SyncDownloading(label, recv, total));
+              }
+            },
+          );
 
       await download(index.defaultCards, cardsFile, 'cards');
       lastEmit = 0;
@@ -92,8 +105,10 @@ class SyncRepository {
           case 'finalizing':
             out.add(const SyncFinalizing());
           case 'done':
-            done.complete(
-                (cards: map['cards'] as int, prints: map['prints'] as int));
+            done.complete((
+              cards: map['cards'] as int,
+              prints: map['prints'] as int,
+            ));
           case 'error':
             done.completeError(StateError(map['message'] as String));
         }
@@ -119,8 +134,9 @@ class SyncRepository {
 
         if (stats.cards < minExpectedCards) {
           throw StateError(
-              'ingest produced only ${stats.cards} cards — refusing to '
-              'replace the database');
+            'ingest produced only ${stats.cards} cards — refusing to '
+            'replace the database',
+          );
         }
         // Downloads are no longer needed once staging is verified.
         for (final f in [cardsFile, rulingsFile]) {

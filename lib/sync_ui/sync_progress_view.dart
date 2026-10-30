@@ -13,21 +13,21 @@ class SyncProgressView extends StatelessWidget {
     final (label, fraction) = switch (progress) {
       SyncChecking() => ('Checking for the latest card data…', null),
       SyncDownloading(:final file, :final receivedBytes, :final fraction) => (
-          'Downloading $file (${_mb(receivedBytes)} MB)…',
-          fraction,
-        ),
+        'Downloading $file (${_mb(receivedBytes)} MB)…',
+        fraction,
+      ),
       SyncIngesting(:final file, :final processed, :final approxTotal) => (
-          file == 'cards'
-              ? 'Processing cards ($processed${approxTotal > 0 ? ' of ~$approxTotal' : ''})…'
-              : 'Processing rulings…',
-          approxTotal > 0 ? (processed / approxTotal).clamp(0.0, 1.0) : null,
-        ),
+        file == 'cards'
+            ? 'Processing cards ($processed${approxTotal > 0 ? ' of ~$approxTotal' : ''})…'
+            : 'Processing rulings…',
+        approxTotal > 0 ? (processed / approxTotal).clamp(0.0, 1.0) : null,
+      ),
       SyncFinalizing() => ('Building search index…', null),
       SyncSwapping() => ('Finishing up…', null),
       SyncDone(:final cards, :final prints) => (
-          'Done — $cards cards, $prints printings.',
-          1.0,
-        ),
+        'Done — $cards cards, $prints printings.',
+        1.0,
+      ),
       SyncFailed(:final message) => ('Sync failed: $message', null),
     };
 

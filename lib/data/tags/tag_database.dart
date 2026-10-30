@@ -113,30 +113,35 @@ class TagPackMetaKeys {
 /// isolate and tests open it directly; the app reads it through an ATTACH
 /// on the live card database's connections. Always built fresh in staging,
 /// so schema bumps need no migration.
-@DriftDatabase(tables: [
-  Tags,
-  TagAliases,
-  TagEdges,
-  TagCards,
-  ArtTags,
-  ArtTagAliases,
-  ArtTagEdges,
-  ArtTagIllustrations,
-  TagPackMeta,
-])
+@DriftDatabase(
+  tables: [
+    Tags,
+    TagAliases,
+    TagEdges,
+    TagCards,
+    ArtTags,
+    ArtTagAliases,
+    ArtTagEdges,
+    ArtTagIllustrations,
+    TagPackMeta,
+  ],
+)
 class TagDatabase extends _$TagDatabase {
   TagDatabase(super.e);
 
   factory TagDatabase.local({File? file, bool staging = false}) {
     final executor = file == null
         ? NativeDatabase.memory()
-        : NativeDatabase(file, setup: (db) {
-            if (staging) {
-              // Disposable during ingest; deleted on any failure.
-              db.execute('PRAGMA journal_mode = OFF;');
-              db.execute('PRAGMA synchronous = OFF;');
-            }
-          });
+        : NativeDatabase(
+            file,
+            setup: (db) {
+              if (staging) {
+                // Disposable during ingest; deleted on any failure.
+                db.execute('PRAGMA journal_mode = OFF;');
+                db.execute('PRAGMA synchronous = OFF;');
+              }
+            },
+          );
     return TagDatabase(executor);
   }
 
@@ -145,15 +150,17 @@ class TagDatabase extends _$TagDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await customStatement(
-              'CREATE UNIQUE INDEX idx_tags_slug ON tags (slug)');
-          await customStatement(
-              'CREATE UNIQUE INDEX idx_art_tags_slug ON art_tags (slug)');
-          // The detail screen looks tags up by illustration.
-          await customStatement('CREATE INDEX idx_art_tag_illustrations_ill '
-              'ON art_tag_illustrations (illustration_id)');
-        },
+    onCreate: (m) async {
+      await m.createAll();
+      await customStatement('CREATE UNIQUE INDEX idx_tags_slug ON tags (slug)');
+      await customStatement(
+        'CREATE UNIQUE INDEX idx_art_tags_slug ON art_tags (slug)',
       );
+      // The detail screen looks tags up by illustration.
+      await customStatement(
+        'CREATE INDEX idx_art_tag_illustrations_ill '
+        'ON art_tag_illustrations (illustration_id)',
+      );
+    },
+  );
 }

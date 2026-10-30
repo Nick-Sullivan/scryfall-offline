@@ -37,11 +37,13 @@ void main() {
       final sw = Stopwatch()..start();
       final db = AppDatabase.local(file: _dbFile, staging: true);
       final ingestor = Ingestor(db);
-      await ingestor.ingestCards(_bulk
-          .openRead()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .transform(const BulkLineDecoder()));
+      await ingestor.ingestCards(
+        _bulk
+            .openRead()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .transform(const BulkLineDecoder()),
+      );
       await ingestor.finalize();
       await db.close();
       stdout.writeln('ingest took ${sw.elapsed}');
@@ -49,12 +51,17 @@ void main() {
 
     final db = AppDatabase.local(file: _dbFile);
     final repo = CardRepository(db);
-    final counts = await db.customSelect(
-        'SELECT (SELECT COUNT(*) FROM cards) c, '
-        '(SELECT COUNT(*) FROM prints) p, '
-        '(SELECT COUNT(*) FROM faces) f').getSingle();
-    stdout.writeln('cards=${counts.data['c']} prints=${counts.data['p']} '
-        'faces=${counts.data['f']}');
+    final counts = await db
+        .customSelect(
+          'SELECT (SELECT COUNT(*) FROM cards) c, '
+          '(SELECT COUNT(*) FROM prints) p, '
+          '(SELECT COUNT(*) FROM faces) f',
+        )
+        .getSingle();
+    stdout.writeln(
+      'cards=${counts.data['c']} prints=${counts.data['p']} '
+      'faces=${counts.data['f']}',
+    );
 
     const queries = [
       '',
@@ -83,17 +90,19 @@ void main() {
       final countMs = sw.elapsedMilliseconds;
 
       stdout.writeln(
-          '${'"$q"'.padRight(46)} page=${'${pageMs}ms'.padRight(8)} '
-          'count=${'${countMs}ms'.padRight(8)} '
-          'rows=${rows.length} total=$total');
+        '${'"$q"'.padRight(46)} page=${'${pageMs}ms'.padRight(8)} '
+        'count=${'${countMs}ms'.padRight(8)} '
+        'rows=${rows.length} total=$total',
+      );
 
-      final plan = await db.customSelect(
-          'EXPLAIN QUERY PLAN SELECT cards.oracle_id FROM cards '
-          'LEFT JOIN prints p ON p.id = cards.preferred_print_id '
-          'WHERE ${compiled.where} ORDER BY ${compiled.orderBy} LIMIT 60',
-          variables: [
-            for (final v in compiled.params) Variable(v)
-          ]).get();
+      final plan = await db
+          .customSelect(
+            'EXPLAIN QUERY PLAN SELECT cards.oracle_id FROM cards '
+            'LEFT JOIN prints p ON p.id = cards.preferred_print_id '
+            'WHERE ${compiled.where} ORDER BY ${compiled.orderBy} LIMIT 60',
+            variables: [for (final v in compiled.params) Variable(v)],
+          )
+          .get();
       for (final r in plan) {
         stdout.writeln('    plan: ${r.data['detail']}');
       }

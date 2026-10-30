@@ -56,17 +56,19 @@ Future<void> ingestIsolateMain(IngestRequest req) async {
   try {
     final overridePath = req.sqliteOverridePath;
     if (overridePath != null) {
-      sqlite_open.open
-          .overrideForAll(() => DynamicLibrary.open(overridePath));
+      sqlite_open.open.overrideForAll(() => DynamicLibrary.open(overridePath));
     }
     final stagingFile = File(req.stagingDbPath);
     if (stagingFile.existsSync()) stagingFile.deleteSync();
     stagingFile.parent.createSync(recursive: true);
 
     db = AppDatabase.local(file: stagingFile, staging: true);
-    final ingestor = Ingestor(db, onProgress: (n) {
-      port.send({'type': 'cards', 'n': n});
-    });
+    final ingestor = Ingestor(
+      db,
+      onProgress: (n) {
+        port.send({'type': 'cards', 'n': n});
+      },
+    );
 
     await ingestor.ingestCards(_decode(req.cardsPath, req.cardsGzip));
     if (req.rulingsPath != null) {

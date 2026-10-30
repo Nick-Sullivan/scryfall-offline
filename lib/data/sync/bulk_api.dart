@@ -7,9 +7,9 @@ import 'package:http/http.dart' as http;
 const appContact = 'nicholas.sullivan@skutopia.com';
 
 Map<String, String> scryfallHeaders(String appVersion) => {
-      'User-Agent': 'ScryfallApp/$appVersion ($appContact)',
-      'Accept': 'application/json',
-    };
+  'User-Agent': 'ScryfallApp/$appVersion ($appContact)',
+  'Accept': 'application/json',
+};
 
 class BulkFileInfo {
   final String type;
@@ -69,17 +69,19 @@ class BulkApi {
     );
     if (resp.statusCode != 200) {
       throw http.ClientException(
-          'bulk-data endpoint returned HTTP ${resp.statusCode}');
+        'bulk-data endpoint returned HTTP ${resp.statusCode}',
+      );
     }
     return (jsonDecode(resp.body) as Map<String, dynamic>)['data'] as List;
   }
 
   BulkFileInfo _parseEntry(List data, String type) {
     final entry = data.cast<Map<String, dynamic>>().firstWhere(
-          (e) => e['type'] == type,
-          orElse: () => throw StateError("bulk-data has no '$type' entry"),
-        );
-    final uri = entry['jsonl_download_uri'] as String? ??
+      (e) => e['type'] == type,
+      orElse: () => throw StateError("bulk-data has no '$type' entry"),
+    );
+    final uri =
+        entry['jsonl_download_uri'] as String? ??
         entry['download_uri'] as String;
     return BulkFileInfo(
       type: type,
@@ -99,7 +101,8 @@ class BulkApi {
       final resp = await client.get(url, headers: scryfallHeaders(appVersion));
       if (resp.statusCode != 200) {
         throw http.ClientException(
-            'sets endpoint returned HTTP ${resp.statusCode}');
+          'sets endpoint returned HTTP ${resp.statusCode}',
+        );
       }
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
       for (final e in (body['data'] as List).cast<Map<String, dynamic>>()) {

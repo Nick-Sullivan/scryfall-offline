@@ -80,7 +80,11 @@ class DbFiles {
   /// it stays valid across card re-downloads.
   void deleteAll() {
     cleanupStray();
-    for (final f in [live, File('${live.path}-wal'), File('${live.path}-shm')]) {
+    for (final f in [
+      live,
+      File('${live.path}-wal'),
+      File('${live.path}-shm'),
+    ]) {
       if (f.existsSync()) f.deleteSync();
     }
     if (syncDir.existsSync()) syncDir.deleteSync(recursive: true);

@@ -123,8 +123,7 @@ class _FilterFormState extends ConsumerState<FilterForm> {
   void _onTextChanged() {
     _textDebounce?.cancel();
     _textDebounce = Timer(const Duration(milliseconds: 150), () {
-      _apply(
-          _draft.copyWith(nameText: _name.text, oracleText: _text.text));
+      _apply(_draft.copyWith(nameText: _name.text, oracleText: _text.text));
     });
   }
 
@@ -134,10 +133,10 @@ class _FilterFormState extends ConsumerState<FilterForm> {
     final types = ref.watch(allTypesProvider).valueOrNull ?? const <String>[];
     // Empty means the optional tag pack isn't installed (or, for art tags,
     // predates them), which hides that section entirely.
-    final tags = ref.watch(allTagsProvider).valueOrNull ??
-        const <(String, String)>[];
-    final artTags = ref.watch(allArtTagsProvider).valueOrNull ??
-        const <(String, String)>[];
+    final tags =
+        ref.watch(allTagsProvider).valueOrNull ?? const <(String, String)>[];
+    final artTags =
+        ref.watch(allArtTagsProvider).valueOrNull ?? const <(String, String)>[];
 
     // Switching a section off in settings also clears it, so nothing hidden
     // here can be affecting the search.
@@ -146,8 +145,7 @@ class _FilterFormState extends ConsumerState<FilterForm> {
     // Each section brings its own top gap, so hiding one leaves no hole.
     return ListView(
       shrinkWrap: widget.embedded,
-      physics:
-          widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
       padding: widget.embedded
           ? const EdgeInsets.fromLTRB(16, 0, 16, 16)
           : const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -167,8 +165,11 @@ class _FilterFormState extends ConsumerState<FilterForm> {
           _label('Types'),
           _ChipPicker<String>(
             suggest: (q) => types
-                .where((ty) =>
-                    ty.toLowerCase().contains(q) && !_draft.types.contains(ty))
+                .where(
+                  (ty) =>
+                      ty.toLowerCase().contains(q) &&
+                      !_draft.types.contains(ty),
+                )
                 .take(20),
             display: (ty) => ty,
             label: 'Add a type',
@@ -176,9 +177,11 @@ class _FilterFormState extends ConsumerState<FilterForm> {
             onAdd: (t) => _apply(_draft.copyWith(types: {..._draft.types, t})),
           ),
           if (_draft.types.isNotEmpty)
-            _chips({for (final t in _draft.types) t: t},
-                (t) => _apply(
-                    _draft.copyWith(types: {..._draft.types}..remove(t)))),
+            _chips(
+              {for (final t in _draft.types) t: t},
+              (t) =>
+                  _apply(_draft.copyWith(types: {..._draft.types}..remove(t))),
+            ),
         ],
         if (show(FilterSection.rulesText)) ...[
           const SizedBox(height: 8),
@@ -209,9 +212,11 @@ class _FilterFormState extends ConsumerState<FilterForm> {
           ),
           if (_draft.otags.isNotEmpty)
             _chips(
-                _draft.otags,
-                (slug) => _apply(_draft.copyWith(
-                    otags: {..._draft.otags}..remove(slug)))),
+              _draft.otags,
+              (slug) => _apply(
+                _draft.copyWith(otags: {..._draft.otags}..remove(slug)),
+              ),
+            ),
         ],
         if ((artTags.isNotEmpty || _draft.atags.isNotEmpty) &&
             show(FilterSection.artTags)) ...[
@@ -227,9 +232,11 @@ class _FilterFormState extends ConsumerState<FilterForm> {
           ),
           if (_draft.atags.isNotEmpty)
             _chips(
-                _draft.atags,
-                (slug) => _apply(_draft.copyWith(
-                    atags: {..._draft.atags}..remove(slug)))),
+              _draft.atags,
+              (slug) => _apply(
+                _draft.copyWith(atags: {..._draft.atags}..remove(slug)),
+              ),
+            ),
         ],
         if (show(FilterSection.colors)) ...[
           const SizedBox(height: 16),
@@ -243,7 +250,8 @@ class _FilterFormState extends ConsumerState<FilterForm> {
                   letter: c,
                   selected: _draft.colors.contains(c),
                   onTap: () => _apply(
-                      _draft.copyWith(colors: _toggleColor(_draft.colors, c))),
+                    _draft.copyWith(colors: _toggleColor(_draft.colors, c)),
+                  ),
                 ),
               const SizedBox(width: 8),
               DropdownButton<String>(
@@ -268,21 +276,36 @@ class _FilterFormState extends ConsumerState<FilterForm> {
                 _ManaDot(
                   letter: c,
                   selected: _draft.identity.contains(c),
-                  onTap: () => _apply(_draft.copyWith(
-                      identity: _toggleColor(_draft.identity, c))),
+                  onTap: () => _apply(
+                    _draft.copyWith(identity: _toggleColor(_draft.identity, c)),
+                  ),
                 ),
             ],
           ),
         ],
         if (show(FilterSection.manaValue))
-          ..._rangeSlider('Mana value', _draft.mv, FilterState.mvMax,
-              (v, {required commit}) => _setRange(_draft.copyWith(mv: v), commit)),
+          ..._rangeSlider(
+            'Mana value',
+            _draft.mv,
+            FilterState.mvMax,
+            (v, {required commit}) => _setRange(_draft.copyWith(mv: v), commit),
+          ),
         if (show(FilterSection.power))
-          ..._rangeSlider('Power', _draft.pow, FilterState.statMax,
-              (v, {required commit}) => _setRange(_draft.copyWith(pow: v), commit)),
+          ..._rangeSlider(
+            'Power',
+            _draft.pow,
+            FilterState.statMax,
+            (v, {required commit}) =>
+                _setRange(_draft.copyWith(pow: v), commit),
+          ),
         if (show(FilterSection.toughness))
-          ..._rangeSlider('Toughness', _draft.tou, FilterState.statMax,
-              (v, {required commit}) => _setRange(_draft.copyWith(tou: v), commit)),
+          ..._rangeSlider(
+            'Toughness',
+            _draft.tou,
+            FilterState.statMax,
+            (v, {required commit}) =>
+                _setRange(_draft.copyWith(tou: v), commit),
+          ),
         if (show(FilterSection.format)) ...[
           const SizedBox(height: 8),
           _label('Format'),
@@ -290,15 +313,22 @@ class _FilterFormState extends ConsumerState<FilterForm> {
             spacing: 8,
             children: [
               for (final f in const [
-                'standard', 'pioneer', 'modern', 'legacy', 'vintage',
-                'pauper', 'commander'
+                'standard',
+                'pioneer',
+                'modern',
+                'legacy',
+                'vintage',
+                'pauper',
+                'commander',
               ])
                 ChoiceChip(
                   label: Text(f),
                   selected: _draft.format == f,
-                  onSelected: (sel) => _apply(sel
-                      ? _draft.copyWith(format: f)
-                      : _draft.copyWith(clearFormat: true)),
+                  onSelected: (sel) => _apply(
+                    sel
+                        ? _draft.copyWith(format: f)
+                        : _draft.copyWith(clearFormat: true),
+                  ),
                 ),
             ],
           ),
@@ -313,8 +343,9 @@ class _FilterFormState extends ConsumerState<FilterForm> {
                 FilterChip(
                   label: Text(r),
                   selected: _draft.rarities.contains(r),
-                  onSelected: (sel) => _apply(_draft.copyWith(
-                      rarities: _toggle(_draft.rarities, r, sel))),
+                  onSelected: (sel) => _apply(
+                    _draft.copyWith(rarities: _toggle(_draft.rarities, r, sel)),
+                  ),
                 ),
             ],
           ),
@@ -329,27 +360,29 @@ class _FilterFormState extends ConsumerState<FilterForm> {
               final q = t.text.toLowerCase();
               if (q.isEmpty) return const Iterable.empty();
               return sets.where(
-                  (s) => s.$1.contains(q) || s.$2.toLowerCase().contains(q));
+                (s) => s.$1.contains(q) || s.$2.toLowerCase().contains(q),
+              );
             },
             onSelected: (s) => _apply(
-                _draft.copyWith(setCode: s.$1, setLabel: '${s.$2} (${s.$1})')),
+              _draft.copyWith(setCode: s.$1, setLabel: '${s.$2} (${s.$1})'),
+            ),
             fieldViewBuilder: (context, controller, focus, onSubmit) =>
                 TextField(
-              controller: controller,
-              focusNode: focus,
-              decoration: InputDecoration(
-                labelText: 'Set name or code',
-                suffixIcon: _draft.setCode == null
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          controller.clear();
-                          _apply(_draft.copyWith(clearSet: true));
-                        },
-                      ),
-              ),
-            ),
+                  controller: controller,
+                  focusNode: focus,
+                  decoration: InputDecoration(
+                    labelText: 'Set name or code',
+                    suffixIcon: _draft.setCode == null
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              controller.clear();
+                              _apply(_draft.copyWith(clearSet: true));
+                            },
+                          ),
+                  ),
+                ),
           ),
         ],
         if (show(FilterSection.sort)) ...[
@@ -401,8 +434,10 @@ class _FilterFormState extends ConsumerState<FilterForm> {
     final end = values.end.round();
     return [
       const SizedBox(height: 16),
-      _label('$label  ${values.start.round()} – '
-          '${end == max.round() ? '∞' : end}'),
+      _label(
+        '$label  ${values.start.round()} – '
+        '${end == max.round() ? '∞' : end}',
+      ),
       RangeSlider(
         values: values,
         min: 0,
@@ -449,9 +484,9 @@ class _FilterFormState extends ConsumerState<FilterForm> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
-      );
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+  );
 }
 
 /// Tags (oracle or art) matching [query] on label or slug, best match
@@ -475,7 +510,7 @@ List<(String, String)> rankTags(
     for (final t in tags)
       if (!exclude.contains(t.$1) &&
           (t.$2.toLowerCase().contains(query) || t.$1.contains(query)))
-        t
+        t,
   ];
   // sort() isn't stable, so tie-break on label to keep the order fixed.
   hits.sort((a, b) {
@@ -597,8 +632,11 @@ class _ManaDot extends StatelessWidget {
             ),
           ),
           // 0xFF130C0E is the symbol ink color the Mana font is designed for.
-          child: Icon(_manaGlyphs[letter],
-              size: 20, color: const Color(0xFF130C0E)),
+          child: Icon(
+            _manaGlyphs[letter],
+            size: 20,
+            color: const Color(0xFF130C0E),
+          ),
         ),
       ),
     );

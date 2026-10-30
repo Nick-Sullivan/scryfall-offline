@@ -65,8 +65,10 @@ class CardExtractor {
     final layout = json['layout'] as String? ?? 'normal';
     if (skippedLayouts.contains(layout)) return null;
 
-    final facesJson = (json['card_faces'] as List?)?.cast<Map<String, dynamic>>();
-    final oracleId = json['oracle_id'] as String? ??
+    final facesJson = (json['card_faces'] as List?)
+        ?.cast<Map<String, dynamic>>();
+    final oracleId =
+        json['oracle_id'] as String? ??
         facesJson?.first['oracle_id'] as String?;
     if (oracleId == null) return null;
 
@@ -85,7 +87,8 @@ class CardExtractor {
       name: json['name'] as String? ?? '',
       cmc: _asDouble(json['cmc'] ?? facesJson?.first['cmc']) ?? 0,
       manaCost: Value(_wholeCardManaCost(json, facesJson)),
-      typeLine: json['type_line'] as String? ??
+      typeLine:
+          json['type_line'] as String? ??
           facesJson?.map((f) => f['type_line'] ?? '').join(' // ') ??
           '',
       colors: colors,
@@ -104,8 +107,12 @@ class CardExtractor {
 
   /// Distinct illustrations on a print: the top-level id for single-faced
   /// cards, one per face for double-faced ones (which carry it per face).
-  List<PrintArtCompanion> _extractArt(Map<String, dynamic> json,
-      List<Map<String, dynamic>>? facesJson, String printId, String oracleId) {
+  List<PrintArtCompanion> _extractArt(
+    Map<String, dynamic> json,
+    List<Map<String, dynamic>>? facesJson,
+    String printId,
+    String oracleId,
+  ) {
     final ids = <String>{
       if (json['illustration_id'] case final String id) id,
       for (final f in facesJson ?? const <Map<String, dynamic>>[])
@@ -114,12 +121,18 @@ class CardExtractor {
     return [
       for (final id in ids)
         PrintArtCompanion.insert(
-            illustrationId: id, printId: printId, oracleId: oracleId)
+          illustrationId: id,
+          printId: printId,
+          oracleId: oracleId,
+        ),
     ];
   }
 
-  List<FacesCompanion> _extractFaces(Map<String, dynamic> json,
-      List<Map<String, dynamic>>? facesJson, String oracleId) {
+  List<FacesCompanion> _extractFaces(
+    Map<String, dynamic> json,
+    List<Map<String, dynamic>>? facesJson,
+    String oracleId,
+  ) {
     final sources = facesJson ?? [json];
     final topColors = maskFromJsonColors(json['colors'] as List?);
     return [
@@ -129,7 +142,11 @@ class CardExtractor {
   }
 
   FacesCompanion _face(
-      Map<String, dynamic> f, String oracleId, int index, int fallbackColors) {
+    Map<String, dynamic> f,
+    String oracleId,
+    int index,
+    int fallbackColors,
+  ) {
     final manaCost = f['mana_cost'] as String?;
     final pow = f['power'] as String?;
     final tou = f['toughness'] as String?;
@@ -181,9 +198,11 @@ class CardExtractor {
       };
     }
 
-    final images = json['image_uris'] as Map<String, dynamic>? ??
-        ((json['card_faces'] as List?)?.first as Map<String, dynamic>?)?[
-            'image_uris'] as Map<String, dynamic>?;
+    final images =
+        json['image_uris'] as Map<String, dynamic>? ??
+        ((json['card_faces'] as List?)?.first
+                as Map<String, dynamic>?)?['image_uris']
+            as Map<String, dynamic>?;
 
     return PrintsCompanion.insert(
       id: json['id'] as String,
@@ -214,11 +233,11 @@ class CardExtractor {
       if (key == 'image_uris' && value is Map<String, dynamic>) {
         out[key] = {
           for (final e in value.entries)
-            if (_keptImageSizes.contains(e.key)) e.key: e.value
+            if (_keptImageSizes.contains(e.key)) e.key: e.value,
         };
       } else if (key == 'card_faces' && value is List) {
         out[key] = [
-          for (final f in value.cast<Map<String, dynamic>>()) _prune(f)
+          for (final f in value.cast<Map<String, dynamic>>()) _prune(f),
         ];
       } else {
         out[key] = value;
@@ -233,12 +252,14 @@ String _pipeJoin(List<dynamic>? values) => values == null || values.isEmpty
     : '|${values.map((v) => (v as String).toLowerCase()).join('|')}|';
 
 double? _asDouble(Object? v) => switch (v) {
-      num n => n.toDouble(),
-      _ => null,
-    };
+  num n => n.toDouble(),
+  _ => null,
+};
 
 String? _wholeCardManaCost(
-    Map<String, dynamic> json, List<Map<String, dynamic>>? faces) {
+  Map<String, dynamic> json,
+  List<Map<String, dynamic>>? faces,
+) {
   final top = json['mana_cost'] as String?;
   if (top != null && top.isNotEmpty) return top;
   final parts = faces

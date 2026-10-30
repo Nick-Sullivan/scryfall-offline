@@ -34,8 +34,10 @@ void main() {
 
     test('quoted phrases, exact names, regex values', () {
       var node = ScryfallQueryParser.parse('o:"enters tapped"');
-      expect(((node as PredicateNode).value as StringValue).text,
-          'enters tapped');
+      expect(
+        ((node as PredicateNode).value as StringValue).text,
+        'enters tapped',
+      );
       node = ScryfallQueryParser.parse('!"Fire // Ice"');
       expect((node as NameTermNode).exact, isTrue);
       node = ScryfallQueryParser.parse(r'o:/^\{T\}: Add/');
@@ -44,10 +46,13 @@ void main() {
 
     test('syntax errors carry a position', () {
       expect(
-          () => ScryfallQueryParser.parse('(t:creature'),
-          throwsA(isA<QuerySyntaxError>()));
-      expect(() => ScryfallQueryParser.parse('   '),
-          throwsA(isA<QuerySyntaxError>()));
+        () => ScryfallQueryParser.parse('(t:creature'),
+        throwsA(isA<QuerySyntaxError>()),
+      );
+      expect(
+        () => ScryfallQueryParser.parse('   '),
+        throwsA(isA<QuerySyntaxError>()),
+      );
     });
   });
 
@@ -57,22 +62,25 @@ void main() {
     setUpAll(() async {
       db = AppDatabase.local();
       final ingestor = Ingestor(db);
-      await ingestor.ingestCards(File('test/fixtures/cards_fixture.jsonl')
-          .openRead()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .transform(const BulkLineDecoder()));
+      await ingestor.ingestCards(
+        File('test/fixtures/cards_fixture.jsonl')
+            .openRead()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .transform(const BulkLineDecoder()),
+      );
       await ingestor.finalize();
     });
 
     tearDownAll(() => db.close());
 
     Future<List<String>> search(String query) async {
-      final compiled =
-          SqlCompiler.compile(ScryfallQueryParser.parse(query));
+      final compiled = SqlCompiler.compile(ScryfallQueryParser.parse(query));
       final rows = await db
-          .customSelect(compiled.selectSql(limit: 100, offset: 0),
-              variables: [for (final p in compiled.params) Variable(p)])
+          .customSelect(
+            compiled.selectSql(limit: 100, offset: 0),
+            variables: [for (final p in compiled.params) Variable(p)],
+          )
           .get();
       return rows.map((r) => r.data['name'] as String).toList();
     }
@@ -82,8 +90,9 @@ void main() {
     });
 
     test('name substring matches faces', () async {
-      expect(await search('graverobber'),
-          ['Nezumi Graverobber // Nighteyes the Desecrator']);
+      expect(await search('graverobber'), [
+        'Nezumi Graverobber // Nighteyes the Desecrator',
+      ]);
       expect(await search('bolt'), ['Lightning Bolt']);
     });
 
@@ -104,20 +113,20 @@ void main() {
 
     test('field-vs-field pow>tou checks every face', () async {
       final names = await search('pow>tou t:creature');
-      expect(
-          names.toSet(),
-          {
-            'Bonecrusher Giant // Stomp',
-            'Hanweir, the Writhing Township',
-            'Nezumi Graverobber // Nighteyes the Desecrator',
-            'Delver of Secrets // Insectile Aberration', // 3/2 back face
-          });
+      expect(names.toSet(), {
+        'Bonecrusher Giant // Stomp',
+        'Hanweir, the Writhing Township',
+        'Nezumi Graverobber // Nighteyes the Desecrator',
+        'Delver of Secrets // Insectile Aberration', // 3/2 back face
+      });
     });
 
     test('banned/restricted/format legality', () async {
       expect(await search('banned:modern'), ['Once Upon a Time']);
-      expect((await search('restricted:vintage')).toSet(),
-          {'Black Lotus', 'Sol Ring'});
+      expect((await search('restricted:vintage')).toSet(), {
+        'Black Lotus',
+        'Sol Ring',
+      });
       final commander = await search('f:commander t:creature');
       expect(commander, isNot(contains('Griselbrand'))); // banned in EDH
     });
@@ -125,8 +134,9 @@ void main() {
     test('is: predicates', () async {
       expect(await search('is:reserved'), ['Black Lotus']);
       expect(await search('is:split'), ['Fire // Ice']);
-      expect(await search('is:transform'),
-          ['Delver of Secrets // Insectile Aberration']);
+      expect(await search('is:transform'), [
+        'Delver of Secrets // Insectile Aberration',
+      ]);
     });
 
     test('negation excludes adventure creature from instants', () async {
@@ -151,16 +161,18 @@ void main() {
 
     test('or with parens', () async {
       final names = await search('(t:planeswalker or t:saga)');
-      expect(names.toSet(),
-          {'Jace, the Mind Sculptor', 'History of Benalia'});
+      expect(names.toSet(), {'Jace, the Mind Sculptor', 'History of Benalia'});
     });
 
     test('keywords', () async {
       final names = await search('kw:flying');
       expect(
-          names,
-          containsAll(
-              ['Delver of Secrets // Insectile Aberration', 'Griselbrand']));
+        names,
+        containsAll([
+          'Delver of Secrets // Insectile Aberration',
+          'Griselbrand',
+        ]),
+      );
     });
 
     test('print-level fields: set and year', () async {
@@ -177,35 +189,49 @@ void main() {
       expect(names.first, 'Black Lotus'); // cmc 0
     });
 
-    test('order:set follows the displayed print, not the first printing',
-        () async {
-      final bySet = await search('order:set direction:desc');
-      // Lightning Bolt is in the fixture twice; its preferred print is the
-      // 2022 CLB one, so the set sort leads with it even though the card
-      // first released in M10 (2009).
-      expect(bySet.first, 'Lightning Bolt');
-      expect(bySet.last, 'Black Lotus'); // lea, 1993
-      // Cards sharing a set (ELD, 2019-10-04) tie-break on name.
-      expect(bySet.indexOf('Bonecrusher Giant // Stomp'),
-          lessThan(bySet.indexOf('Once Upon a Time')));
+    test(
+      'order:set follows the displayed print, not the first printing',
+      () async {
+        final bySet = await search('order:set direction:desc');
+        // Lightning Bolt is in the fixture twice; its preferred print is the
+        // 2022 CLB one, so the set sort leads with it even though the card
+        // first released in M10 (2009).
+        expect(bySet.first, 'Lightning Bolt');
+        expect(bySet.last, 'Black Lotus'); // lea, 1993
+        // Cards sharing a set (ELD, 2019-10-04) tie-break on name.
+        expect(
+          bySet.indexOf('Bonecrusher Giant // Stomp'),
+          lessThan(bySet.indexOf('Once Upon a Time')),
+        );
 
-      expect((await search('order:set direction:asc')).first, 'Black Lotus');
+        expect((await search('order:set direction:asc')).first, 'Black Lotus');
 
-      // order:released still means "when did this card first exist", so Bolt
-      // lands mid-list there rather than at the top.
-      final byRelease = await search('order:released direction:desc');
-      expect(byRelease.first, isNot('Lightning Bolt'));
-    });
+        // order:released still means "when did this card first exist", so Bolt
+        // lands mid-list there rather than at the top.
+        final byRelease = await search('order:released direction:desc');
+        expect(byRelease.first, isNot('Lightning Bolt'));
+      },
+    );
 
     test('semantic errors: unknown field with suggestion, bad values', () {
       expect(
-          () => SqlCompiler.compile(ScryfallQueryParser.parse('colr:red')),
-          throwsA(isA<QuerySemanticError>().having(
-              (e) => e.message, 'message', contains("did you mean 'color'"))));
-      expect(() => SqlCompiler.compile(ScryfallQueryParser.parse('mv>=x')),
-          throwsA(isA<QuerySemanticError>()));
-      expect(() => SqlCompiler.compile(ScryfallQueryParser.parse('is:cube')),
-          throwsA(isA<QuerySemanticError>()));
+        () => SqlCompiler.compile(ScryfallQueryParser.parse('colr:red')),
+        throwsA(
+          isA<QuerySemanticError>().having(
+            (e) => e.message,
+            'message',
+            contains("did you mean 'color'"),
+          ),
+        ),
+      );
+      expect(
+        () => SqlCompiler.compile(ScryfallQueryParser.parse('mv>=x')),
+        throwsA(isA<QuerySemanticError>()),
+      );
+      expect(
+        () => SqlCompiler.compile(ScryfallQueryParser.parse('is:cube')),
+        throwsA(isA<QuerySemanticError>()),
+      );
     });
   });
 }

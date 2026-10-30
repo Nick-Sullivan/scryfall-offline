@@ -219,7 +219,9 @@ class _UpdateBanner extends ConsumerWidget {
           onPressed: () {
             // Always set when the banner is visible — availability required
             // a known current total.
-            final total = ref.read(prefsProvider).getInt(UpdatePrefs.checkTotal);
+            final total = ref
+                .read(prefsProvider)
+                .getInt(UpdatePrefs.checkTotal);
             if (total != null) {
               ref.read(dismissedUpdateProvider.notifier).dismiss(total);
             }

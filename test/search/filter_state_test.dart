@@ -12,13 +12,17 @@ void main() {
 
     test('colors honor the comparison mode', () {
       expect(
-          const FilterState(colors: {'W', 'U'}, colorMode: ':').toSyntax(),
-          'c:wu');
+        const FilterState(colors: {'W', 'U'}, colorMode: ':').toSyntax(),
+        'c:wu',
+      );
       expect(
-          const FilterState(colors: {'R'}, colorMode: '=').toSyntax(), 'c=r');
+        const FilterState(colors: {'R'}, colorMode: '=').toSyntax(),
+        'c=r',
+      );
       expect(
-          const FilterState(colors: {'G', 'W'}, colorMode: '<=').toSyntax(),
-          'c<=gw');
+        const FilterState(colors: {'G', 'W'}, colorMode: '<=').toSyntax(),
+        'c<=gw',
+      );
     });
 
     test('identity, mana value range, format', () {
@@ -60,7 +64,8 @@ void main() {
       );
       expect(
         const FilterState(
-            otags: {'removal': 'Removal', 'mana-rock': 'Mana Rock'}).toSyntax(),
+          otags: {'removal': 'Removal', 'mana-rock': 'Mana Rock'},
+        ).toSyntax(),
         'otag:removal otag:mana-rock',
       );
     });
@@ -79,10 +84,7 @@ void main() {
         'o:"enters tapped" o:haste',
       );
       // A half-typed quote never yields unparseable syntax.
-      expect(
-        const FilterState(oracleText: '"draw a').toSyntax(),
-        'o:draw o:a',
-      );
+      expect(const FilterState(oracleText: '"draw a').toSyntax(), 'o:draw o:a');
     });
 
     test('card name words become separate name: terms', () {
@@ -99,15 +101,26 @@ void main() {
     });
 
     test('sort emits order+direction only when non-default', () {
-      expect(const FilterState(sort: 'name', sortAscending: true).toSyntax(), '');
-      expect(const FilterState(sort: 'cmc').toSyntax(),
-          'order:cmc direction:asc');
-      expect(const FilterState(sort: 'released', sortAscending: false).toSyntax(),
-          'order:released direction:desc');
-      expect(const FilterState(sort: 'name', sortAscending: false).toSyntax(),
-          'order:name direction:desc');
-      expect(const FilterState(sort: 'set', sortAscending: false).toSyntax(),
-          'order:set direction:desc');
+      expect(
+        const FilterState(sort: 'name', sortAscending: true).toSyntax(),
+        '',
+      );
+      expect(
+        const FilterState(sort: 'cmc').toSyntax(),
+        'order:cmc direction:asc',
+      );
+      expect(
+        const FilterState(sort: 'released', sortAscending: false).toSyntax(),
+        'order:released direction:desc',
+      );
+      expect(
+        const FilterState(sort: 'name', sortAscending: false).toSyntax(),
+        'order:name direction:desc',
+      );
+      expect(
+        const FilterState(sort: 'set', sortAscending: false).toSyntax(),
+        'order:set direction:desc',
+      );
     });
 
     test('set code', () {
@@ -116,15 +129,19 @@ void main() {
 
     test('art tags emit atag:, separate from oracle tags', () {
       expect(
-          const FilterState(
-              otags: {'removal': 'removal'},
-              atags: {'dragon': 'dragon', 'night-sky': 'night sky'}).toSyntax(),
-          'otag:removal atag:dragon atag:night-sky');
+        const FilterState(
+          otags: {'removal': 'removal'},
+          atags: {'dragon': 'dragon', 'night-sky': 'night sky'},
+        ).toSyntax(),
+        'otag:removal atag:dragon atag:night-sky',
+      );
     });
 
     test('power and toughness ranges; the top stop is open-ended', () {
-      expect(const FilterState(pow: RangeValues(3, 5)).toSyntax(),
-          'pow>=3 pow<=5');
+      expect(
+        const FilterState(pow: RangeValues(3, 5)).toSyntax(),
+        'pow>=3 pow<=5',
+      );
       expect(const FilterState(tou: RangeValues(2, 10)).toSyntax(), 'tou>=2');
       expect(const FilterState(tou: RangeValues(0, 4)).toSyntax(), 'tou<=4');
       // Full ranges add nothing, so non-creatures aren't filtered out.
@@ -161,8 +178,11 @@ void main() {
       expect(cases.keys.toSet(), FilterSection.values.toSet());
       for (final MapEntry(key: section, value: state) in cases.entries) {
         for (final other in FilterSection.values) {
-          expect(state.isActive(other), other == section,
-              reason: '${section.name} state, checking ${other.name}');
+          expect(
+            state.isActive(other),
+            other == section,
+            reason: '${section.name} state, checking ${other.name}',
+          );
         }
       }
     });
@@ -174,10 +194,15 @@ void main() {
         final other = section == FilterSection.format
             ? FilterSection.rarity
             : FilterSection.format;
-        final combined =
-            state.copyWith(format: 'modern', rarities: const {'rare'});
-        expect(combined.cleared(section).isActive(other), isTrue,
-            reason: section.name);
+        final combined = state.copyWith(
+          format: 'modern',
+          rarities: const {'rare'},
+        );
+        expect(
+          combined.cleared(section).isActive(other),
+          isTrue,
+          reason: section.name,
+        );
       }
     });
   });
@@ -206,7 +231,8 @@ void main() {
       // Through a real encode/decode, not just the maps — otags arrives as
       // Map<String, dynamic> from jsonDecode and has to survive the cast.
       final restored = FilterState.fromJson(
-          jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>);
+        jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>,
+      );
       expect(restored.toSyntax(), original.toSyntax());
       expect(restored.types, original.types);
       expect(restored.otags, original.otags);
@@ -220,8 +246,7 @@ void main() {
       expect(FilterState.fromJson(const {}).toSyntax(), '');
     });
 
-    test('a filter saved before power/toughness existed loads full ranges',
-        () {
+    test('a filter saved before power/toughness existed loads full ranges', () {
       final old = FilterState.fromJson(const {'mvStart': 1, 'mvEnd': 16});
       expect(old.pow, const RangeValues(0, FilterState.statMax));
       expect(old.tou, const RangeValues(0, FilterState.statMax));

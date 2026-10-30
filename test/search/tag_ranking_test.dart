@@ -44,9 +44,7 @@ void main() {
     });
 
     test('caps suggestions at 20', () {
-      final many = [
-        for (var i = 0; i < 50; i++) ('tag-$i', 'tag $i'),
-      ];
+      final many = [for (var i = 0; i < 50; i++) ('tag-$i', 'tag $i')];
       expect(rankTags(many, 'tag', const {}).length, 20);
     });
 

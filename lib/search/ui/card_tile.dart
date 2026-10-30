@@ -29,18 +29,21 @@ class CardTile extends ConsumerWidget {
   const CardTile({super.key, required this.card, this.onRemove});
 
   void _toggleSaved(BuildContext context, WidgetRef ref) {
-    final wasSaved =
-        ref.read(savedCardsProvider).contains(card.oracleId);
+    final wasSaved = ref.read(savedCardsProvider).contains(card.oracleId);
     ref.read(savedCardsProvider.notifier).toggle(card.oracleId);
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(wasSaved
-            ? 'Removed ${card.name} from saved cards'
-            : 'Saved ${card.name}'),
-        duration: const Duration(milliseconds: 1500),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            wasSaved
+                ? 'Removed ${card.name} from saved cards'
+                : 'Saved ${card.name}',
+          ),
+          duration: const Duration(milliseconds: 1500),
+        ),
+      );
   }
 
   @override
@@ -83,9 +86,11 @@ class CardTile extends ConsumerWidget {
           child: InkWell(
             // Opens on the print the tile shows (an atag: match may not be
             // the preferred one).
-            onTap: () => context.push(card.printId == null
-                ? '/card/${card.oracleId}'
-                : '/card/${card.oracleId}?print=${card.printId}'),
+            onTap: () => context.push(
+              card.printId == null
+                  ? '/card/${card.oracleId}'
+                  : '/card/${card.oracleId}?print=${card.printId}',
+            ),
             onLongPress: () => _toggleSaved(context, ref),
             borderRadius: BorderRadius.circular(9),
             child: ClipRRect(

@@ -8,28 +8,31 @@ void main() {
 
   Future<ProviderContainer> makeContainer() async {
     final prefs = await SharedPreferences.getInstance();
-    final container =
-        ProviderContainer(overrides: [prefsProvider.overrideWithValue(prefs)]);
+    final container = ProviderContainer(
+      overrides: [prefsProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
     return container;
   }
 
-  test('toggle saves newest-first, removes on second toggle, persists',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    final container = await makeContainer();
-    final notifier = container.read(savedCardsProvider.notifier);
+  test(
+    'toggle saves newest-first, removes on second toggle, persists',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = await makeContainer();
+      final notifier = container.read(savedCardsProvider.notifier);
 
-    notifier.toggle('aaa');
-    notifier.toggle('bbb');
-    expect(container.read(savedCardsProvider), ['bbb', 'aaa']);
+      notifier.toggle('aaa');
+      notifier.toggle('bbb');
+      expect(container.read(savedCardsProvider), ['bbb', 'aaa']);
 
-    notifier.toggle('aaa');
-    expect(container.read(savedCardsProvider), ['bbb']);
+      notifier.toggle('aaa');
+      expect(container.read(savedCardsProvider), ['bbb']);
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getStringList('savedCards'), ['bbb']);
-  });
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('savedCards'), ['bbb']);
+    },
+  );
 
   test('loads persisted list and clear empties it', () async {
     SharedPreferences.setMockInitialValues({

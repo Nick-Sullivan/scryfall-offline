@@ -10,8 +10,9 @@ void main() {
 
   Future<ProviderContainer> makeContainer() async {
     final prefs = await SharedPreferences.getInstance();
-    final container =
-        ProviderContainer(overrides: [prefsProvider.overrideWithValue(prefs)]);
+    final container = ProviderContainer(
+      overrides: [prefsProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
     return container;
   }

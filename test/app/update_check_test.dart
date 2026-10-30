@@ -32,28 +32,31 @@ void main() {
   tearDown(() => db.close());
 
   http.Client setsClient() => MockClient((req) async {
-        requests++;
-        return http.Response(
-            jsonEncode({
-              'has_more': false,
-              'data': [
-                {'card_count': serverTotal},
-              ],
-            }),
-            200);
-      });
+    requests++;
+    return http.Response(
+      jsonEncode({
+        'has_more': false,
+        'data': [
+          {'card_count': serverTotal},
+        ],
+      }),
+      200,
+    );
+  });
 
   http.Client offlineClient() =>
       MockClient((req) async => throw http.ClientException('offline'));
 
   Future<ProviderContainer> makeContainer({http.Client? client}) async {
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(overrides: [
-      prefsProvider.overrideWithValue(prefs),
-      appVersionProvider.overrideWithValue('test'),
-      httpClientProvider.overrideWithValue(client ?? setsClient()),
-      cardRepositoryProvider.overrideWithValue(repo),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        prefsProvider.overrideWithValue(prefs),
+        appVersionProvider.overrideWithValue('test'),
+        httpClientProvider.overrideWithValue(client ?? setsClient()),
+        cardRepositoryProvider.overrideWithValue(repo),
+      ],
+    );
     addTearDown(container.dispose);
     return container;
   }
@@ -96,39 +99,45 @@ void main() {
       expect(await container.read(updateCheckProvider.future), isNull);
     });
 
-    test('pre-existing install without stored total is seeded, no prompt',
-        () async {
-      await seedSchema();
-      await repo.setMetaEntry(MetaKeys.cardCount, '31000'); // old-style meta
-      final container = await makeContainer();
-      container.listen(updateCheckProvider, (_, __) {});
-      expect(await container.read(updateCheckProvider.future), isFalse);
-      expect((await repo.metaEntries())[MetaKeys.setsCardTotal], '100');
-    });
+    test(
+      'pre-existing install without stored total is seeded, no prompt',
+      () async {
+        await seedSchema();
+        await repo.setMetaEntry(MetaKeys.cardCount, '31000'); // old-style meta
+        final container = await makeContainer();
+        container.listen(updateCheckProvider, (_, __) {});
+        expect(await container.read(updateCheckProvider.future), isFalse);
+        expect((await repo.metaEntries())[MetaKeys.setsCardTotal], '100');
+      },
+    );
 
-    test('database built by an older schema -> true, even when up to date',
-        () async {
-      await seedSchema(schemaVersionValue - 1);
-      await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
-      final container = await makeContainer();
-      container.listen(updateCheckProvider, (_, __) {});
-      expect(await container.read(updateCheckProvider.future), isTrue);
-      expect(requests, 0);
-    });
+    test(
+      'database built by an older schema -> true, even when up to date',
+      () async {
+        await seedSchema(schemaVersionValue - 1);
+        await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
+        final container = await makeContainer();
+        container.listen(updateCheckProvider, (_, __) {});
+        expect(await container.read(updateCheckProvider.future), isTrue);
+        expect(requests, 0);
+      },
+    );
   });
 
   group('updateAvailableProvider (search banner)', () {
-    test('fresh cached check inside 24h is reused — zero network calls',
-        () async {
-      await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
-      SharedPreferences.setMockInitialValues({
-        UpdatePrefs.checkTotal: 105,
-        UpdatePrefs.checkAt: DateTime.now().toUtc().toIso8601String(),
-      });
-      final container = await makeContainer();
-      expect(await container.read(updateAvailableProvider.future), isTrue);
-      expect(requests, 0);
-    });
+    test(
+      'fresh cached check inside 24h is reused — zero network calls',
+      () async {
+        await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
+        SharedPreferences.setMockInitialValues({
+          UpdatePrefs.checkTotal: 105,
+          UpdatePrefs.checkAt: DateTime.now().toUtc().toIso8601String(),
+        });
+        final container = await makeContainer();
+        expect(await container.read(updateAvailableProvider.future), isTrue);
+        expect(requests, 0);
+      },
+    );
 
     test('dismiss hides the banner; a different total re-shows it', () async {
       await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
@@ -146,11 +155,12 @@ void main() {
       serverTotal = 110;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-          UpdatePrefs.checkAt,
-          DateTime.now()
-              .toUtc()
-              .subtract(const Duration(days: 2))
-              .toIso8601String());
+        UpdatePrefs.checkAt,
+        DateTime.now()
+            .toUtc()
+            .subtract(const Duration(days: 2))
+            .toIso8601String(),
+      );
       container.invalidate(updateAvailableProvider);
       expect(await container.read(updateAvailableProvider.future), isTrue);
     });
@@ -166,11 +176,13 @@ void main() {
       expect(await container.read(updateAvailableProvider.future), isFalse);
     });
 
-    test('offline with nothing cached -> false, never blocks the app',
-        () async {
-      await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
-      final container = await makeContainer(client: offlineClient());
-      expect(await container.read(updateAvailableProvider.future), isFalse);
-    });
+    test(
+      'offline with nothing cached -> false, never blocks the app',
+      () async {
+        await repo.setMetaEntry(MetaKeys.setsCardTotal, '100');
+        final container = await makeContainer(client: offlineClient());
+        expect(await container.read(updateAvailableProvider.future), isFalse);
+      },
+    );
   });
 }

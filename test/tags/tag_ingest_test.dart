@@ -8,13 +8,13 @@ import 'package:scryfall_app/data/tags/tag_ingestor.dart';
 
 import '../helpers/test_db.dart';
 
-Stream<Map<String, dynamic>> fixtureStream(
-        [String name = 'tags_fixture.jsonl']) =>
-    File('test/fixtures/$name')
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .transform(const BulkLineDecoder());
+Stream<Map<String, dynamic>> fixtureStream([
+  String name = 'tags_fixture.jsonl',
+]) => File('test/fixtures/$name')
+    .openRead()
+    .transform(utf8.decoder)
+    .transform(const LineSplitter())
+    .transform(const BulkLineDecoder());
 
 void main() {
   configureSqliteForTests();
@@ -54,13 +54,13 @@ void main() {
       final edges = await db.select(db.tagEdges).get();
       expect(edges.length, 2);
       expect(
-          edges.any((e) =>
-              e.parentId.endsWith('01') && e.childId.endsWith('02')),
-          isTrue);
+        edges.any((e) => e.parentId.endsWith('01') && e.childId.endsWith('02')),
+        isTrue,
+      );
       expect(
-          edges.any((e) =>
-              e.parentId.endsWith('02') && e.childId.endsWith('03')),
-          isTrue);
+        edges.any((e) => e.parentId.endsWith('02') && e.childId.endsWith('03')),
+        isTrue,
+      );
     });
 
     test('stores aliases and taggings', () async {
@@ -74,16 +74,20 @@ void main() {
 
     test('writes meta entries', () async {
       final meta = {
-        for (final r in await db.select(db.tagPackMeta).get()) r.key: r.value
+        for (final r in await db.select(db.tagPackMeta).get()) r.key: r.value,
       };
       expect(meta[TagPackMetaKeys.tagCount], '5');
       expect(meta[TagPackMetaKeys.taggingCount], '7');
       expect(meta[TagPackMetaKeys.artTagCount], '4');
       expect(meta[TagPackMetaKeys.artTaggingCount], '3');
-      expect(meta[TagPackMetaKeys.bulkUpdatedAt],
-          '2026-07-17T21:00:36.823+00:00');
-      expect(DateTime.tryParse(meta[TagPackMetaKeys.fetchedAt] ?? ''),
-          isNotNull);
+      expect(
+        meta[TagPackMetaKeys.bulkUpdatedAt],
+        '2026-07-17T21:00:36.823+00:00',
+      );
+      expect(
+        DateTime.tryParse(meta[TagPackMetaKeys.fetchedAt] ?? ''),
+        isNotNull,
+      );
     });
   });
 
@@ -103,8 +107,12 @@ void main() {
 
     test('illustration tags land in the art tables', () async {
       final tags = await db.select(db.artTags).get();
-      expect(tags.map((t) => t.slug).toSet(),
-          {'fire', 'lightning', 'insect', 'squirrel-art'});
+      expect(tags.map((t) => t.slug).toSet(), {
+        'fire',
+        'lightning',
+        'insect',
+        'squirrel-art',
+      });
       expect(ingestor.stats.artTags, 4);
     });
 
@@ -112,8 +120,10 @@ void main() {
       final edges = await db.select(db.artTagEdges).get();
       expect(edges.single.parentId, endsWith('01'));
       expect(edges.single.childId, endsWith('02'));
-      expect((await db.select(db.artTagAliases).get()).single.alias,
-          'electricity');
+      expect(
+        (await db.select(db.artTagAliases).get()).single.alias,
+        'electricity',
+      );
 
       // squirrel-art's taggings name an oracle_id, not an illustration, so
       // they're skipped.

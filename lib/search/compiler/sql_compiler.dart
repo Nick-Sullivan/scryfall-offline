@@ -21,8 +21,13 @@ class CompiledQuery {
   final String? displayPrint;
   final List<Object?> displayParams;
 
-  const CompiledQuery(this.where, this.params, this.orderBy,
-      {this.displayPrint, this.displayParams = const []});
+  const CompiledQuery(
+    this.where,
+    this.params,
+    this.orderBy, {
+    this.displayPrint,
+    this.displayParams = const [],
+  });
 
   String selectSql({required int limit, required int offset}) =>
       'SELECT * FROM cards WHERE $where ORDER BY $orderBy '
@@ -55,47 +60,60 @@ class SqlCompiler {
   /// schema v2) — older databases need a card-data update for `atag:`.
   final bool artIndexed;
 
-  SqlCompiler(
-      {this.tagsInstalled = true,
-      this.artTagsInstalled = true,
-      this.artIndexed = true});
+  SqlCompiler({
+    this.tagsInstalled = true,
+    this.artTagsInstalled = true,
+    this.artIndexed = true,
+  });
 
-  static CompiledQuery compile(QueryNode root,
-          {bool tagsInstalled = true,
-          bool artTagsInstalled = true,
-          bool artIndexed = true}) =>
-      SqlCompiler(
-              tagsInstalled: tagsInstalled,
-              artTagsInstalled: artTagsInstalled,
-              artIndexed: artIndexed)
-          ._run(root);
+  static CompiledQuery compile(
+    QueryNode root, {
+    bool tagsInstalled = true,
+    bool artTagsInstalled = true,
+    bool artIndexed = true,
+  }) => SqlCompiler(
+    tagsInstalled: tagsInstalled,
+    artTagsInstalled: artTagsInstalled,
+    artIndexed: artIndexed,
+  )._run(root);
 
   CompiledQuery _run(QueryNode root) {
     var where = _node(root);
     if (where.isEmpty) where = '1=1';
     if (_displayConds.isEmpty) return CompiledQuery(where, _params, _orderBy());
     // The preferred print wins when it qualifies; otherwise the newest
-    // English one, so the tile shows the art that was searched for.
-    final display = '(SELECT dp.id FROM prints dp '
-        'WHERE dp.oracle_id = cards.oracle_id AND ${_displayConds.join(' AND ')} '
-        "ORDER BY dp.id = cards.preferred_print_id DESC, (dp.lang = 'en') DESC, "
-        'dp.released_at DESC LIMIT 1)';
-    return CompiledQuery(where, _params, _orderBy(),
-        displayPrint: display, displayParams: _displayParams);
+    // English one, so the tile shows the art that was searched for. Two
+    // lookups rather than one ORDER BY on the preferred id: older SQLite
+    // (CI's system library) can't see the outer row from a subquery's ORDER BY.
+    final conds = _displayConds.join(' AND ');
+    final display =
+        'COALESCE('
+        '(SELECT dp.id FROM prints dp '
+        'WHERE dp.id = cards.preferred_print_id AND $conds), '
+        '(SELECT dp.id FROM prints dp '
+        'WHERE dp.oracle_id = cards.oracle_id AND $conds '
+        "ORDER BY (dp.lang = 'en') DESC, dp.released_at DESC LIMIT 1))";
+    return CompiledQuery(
+      where,
+      _params,
+      _orderBy(),
+      displayPrint: display,
+      displayParams: [..._displayParams, ..._displayParams],
+    );
   }
 
   // ---------------------------------------------------------------- nodes
 
   String _node(QueryNode n) => switch (n) {
-        AndNode a => _junction(a.children, 'AND'),
-        OrNode o => _junction(o.children, 'OR'),
-        NotNode not => switch (_nonConjunctive(() => _node(not.child))) {
-            '' => '',
-            final inner => 'NOT ($inner)',
-          },
-        PredicateNode p => _predicate(p),
-        NameTermNode t => _nameTerm(t),
-      };
+    AndNode a => _junction(a.children, 'AND'),
+    OrNode o => _junction(o.children, 'OR'),
+    NotNode not => switch (_nonConjunctive(() => _node(not.child))) {
+      '' => '',
+      final inner => 'NOT ($inner)',
+    },
+    PredicateNode p => _predicate(p),
+    NameTermNode t => _nameTerm(t),
+  };
 
   String _junction(List<QueryNode> children, String op) {
     String child(QueryNode n) => op == 'OR' && children.length > 1
@@ -136,10 +154,12 @@ class SqlCompiler {
     final value = p.value;
 
     String text() => switch (value) {
-          StringValue s => s.text,
-          RegexValue _ => throw QuerySemanticError(
-              "field '$field' does not accept a regex", p.position),
-        };
+      StringValue s => s.text,
+      RegexValue _ => throw QuerySemanticError(
+        "field '$field' does not accept a regex",
+        p.position,
+      ),
+    };
 
     switch (field) {
       // ---- display directives (not filters)
@@ -151,13 +171,17 @@ class SqlCompiler {
           'asc' || 'ascending' => true,
           'desc' || 'descending' => false,
           _ => throw QuerySemanticError(
-              "direction must be 'asc' or 'desc'", p.position),
+            "direction must be 'asc' or 'desc'",
+            p.position,
+          ),
         };
         return '';
       case 'unique':
         if (text().toLowerCase() != 'cards') {
           throw QuerySemanticError(
-              "only unique:cards is supported offline", p.position);
+            "only unique:cards is supported offline",
+            p.position,
+          );
         }
         return '';
 
@@ -165,11 +189,22 @@ class SqlCompiler {
       case 'c' || 'color':
         return _color('cards.colors', op, text(), p, identityDefault: false);
       case 'id' || 'identity':
-        return _color('cards.color_identity', op, text(), p,
-            identityDefault: true);
+        return _color(
+          'cards.color_identity',
+          op,
+          text(),
+          p,
+          identityDefault: true,
+        );
       case 'produces':
-        return _color('cards.produced_mana', op, text(), p,
-            identityDefault: false, allowColorlessBit: true);
+        return _color(
+          'cards.produced_mana',
+          op,
+          text(),
+          p,
+          identityDefault: false,
+          allowColorlessBit: true,
+        );
 
       // ---- face text
       case 't' || 'type':
@@ -199,8 +234,9 @@ class SqlCompiler {
         return _stat('loy_num', op, text(), p);
       case 'pt' || 'powtou':
         return _facesExists(
-            'f.pow_num IS NOT NULL AND f.tou_num IS NOT NULL AND '
-            'f.pow_num + f.tou_num ${_numOp(op, p)} ${_numParam(text(), p)}');
+          'f.pow_num IS NOT NULL AND f.tou_num IS NOT NULL AND '
+          'f.pow_num + f.tou_num ${_numOp(op, p)} ${_numParam(text(), p)}',
+        );
       case 'edhrec':
         return 'cards.edhrec_rank IS NOT NULL AND '
             'cards.edhrec_rank ${_numOp(op, p)} ${_numParam(text(), p)}';
@@ -228,10 +264,15 @@ class SqlCompiler {
 
       // ---- print-level
       case 'r' || 'rarity':
-        final ord = rarityOrdinal[text().toLowerCase()] ??
+        final ord =
+            rarityOrdinal[text().toLowerCase()] ??
             (throw QuerySemanticError(
-                "unknown rarity '${text()}'", p.position));
-        return _printsExists('p.rarity ${op == ':' ? '=' : _numOp(op, p)} $ord');
+              "unknown rarity '${text()}'",
+              p.position,
+            ));
+        return _printsExists(
+          'p.rarity ${op == ':' ? '=' : _numOp(op, p)} $ord',
+        );
       case 's' || 'e' || 'set' || 'edition':
         _params.add(text().toLowerCase());
         return _printsExists('p.set_code = ?');
@@ -266,7 +307,9 @@ class SqlCompiler {
           'arena' => GameFlag.arena,
           'mtgo' => GameFlag.mtgo,
           _ => throw QuerySemanticError(
-              "game must be paper, arena or mtgo", p.position),
+            "game must be paper, arena or mtgo",
+            p.position,
+          ),
         };
         return _printsExists('p.games & $bit != 0');
       case 'year' || 'date':
@@ -276,13 +319,16 @@ class SqlCompiler {
       case 'otag' || 'oracletag' || 'function':
         if (!tagsInstalled) {
           throw QuerySemanticError(
-              "oracle tags aren't downloaded — get 'Tag data' from the "
-              'Card data screen',
-              p.position);
+            "oracle tags aren't downloaded — get 'Tag data' from the "
+            'Card data screen',
+            p.position,
+          );
         }
         if (op != ':' && op != '=') {
           throw QuerySemanticError(
-              "operator '$op' is not valid for '$field'", p.position);
+            "operator '$op' is not valid for '$field'",
+            p.position,
+          );
         }
         // Matches slug or alias and includes all descendant tags, like
         // Scryfall (tagdb is the attached tag pack).
@@ -302,34 +348,42 @@ class SqlCompiler {
       case 'atag' || 'arttag' || 'art':
         if (!tagsInstalled || !artTagsInstalled) {
           throw QuerySemanticError(
-              "art tags aren't downloaded — get 'Tag data' from the "
-              'Card data screen',
-              p.position);
+            "art tags aren't downloaded — get 'Tag data' from the "
+            'Card data screen',
+            p.position,
+          );
         }
         if (!artIndexed) {
           throw QuerySemanticError(
-              'art tags need newer card data — update it from the Card '
-              'data screen',
-              p.position);
+            'art tags need newer card data — update it from the Card '
+            'data screen',
+            p.position,
+          );
         }
         if (op != ':' && op != '=') {
           throw QuerySemanticError(
-              "operator '$op' is not valid for '$field'", p.position);
+            "operator '$op' is not valid for '$field'",
+            p.position,
+          );
         }
         final tag = normalizeTag(text());
         if (_conjunctive) {
           _displayParams.addAll([tag, tag]);
-          _displayConds.add('EXISTS (SELECT 1 FROM print_art pa '
-              'WHERE pa.print_id = dp.id AND pa.illustration_id IN '
-              '(${_artIllustrations()}))');
+          _displayConds.add(
+            'EXISTS (SELECT 1 FROM print_art pa '
+            'WHERE pa.print_id = dp.id AND pa.illustration_id IN '
+            '(${_artIllustrations()}))',
+          );
         }
         _params.addAll([tag, tag]);
         return 'cards.oracle_id IN (SELECT pa.oracle_id FROM print_art pa '
             'WHERE pa.illustration_id IN (${_artIllustrations()}))';
 
       default:
-        throw QuerySemanticError.unknownField(field,
-            suggestion: _suggestField(field));
+        throw QuerySemanticError.unknownField(
+          field,
+          suggestion: _suggestField(field),
+        );
     }
   }
 
@@ -337,7 +391,8 @@ class SqlCompiler {
 
   /// Illustrations carrying an art tag — matched by slug or alias (two
   /// params) — or any of its descendants, like `otag:`.
-  String _artIllustrations() => 'WITH RECURSIVE aset(id) AS ('
+  String _artIllustrations() =>
+      'WITH RECURSIVE aset(id) AS ('
       'SELECT id FROM tagdb.art_tags WHERE slug = ? '
       'UNION SELECT tag_id FROM tagdb.art_tag_aliases WHERE alias = ? '
       'UNION SELECT e.child_id FROM tagdb.art_tag_edges e '
@@ -362,7 +417,11 @@ class SqlCompiler {
   }
 
   /// Substring match on a face column, accelerated by the trigram FTS table.
-  String _faceText(String column, QueryValue value, {required String ftsColumn}) {
+  String _faceText(
+    String column,
+    QueryValue value, {
+    required String ftsColumn,
+  }) {
     switch (value) {
       case RegexValue r:
         return _facesExists(_regex('f.$column', r.pattern));
@@ -401,16 +460,21 @@ class SqlCompiler {
       .replaceAll('_', '\\_');
 
   String _numOp(String op, PredicateNode p) => switch (op) {
-        ':' => '=',
-        '=' || '!=' || '<' || '<=' || '>' || '>=' => op,
-        _ => throw QuerySemanticError(
-            "operator '$op' not valid for '${p.field}'", p.position),
-      };
+    ':' => '=',
+    '=' || '!=' || '<' || '<=' || '>' || '>=' => op,
+    _ => throw QuerySemanticError(
+      "operator '$op' not valid for '${p.field}'",
+      p.position,
+    ),
+  };
 
   String _numParam(String value, PredicateNode p) {
-    final n = num.tryParse(value) ??
+    final n =
+        num.tryParse(value) ??
         (throw QuerySemanticError(
-            "expected a number for '${p.field}', got '$value'", p.position));
+          "expected a number for '${p.field}', got '$value'",
+          p.position,
+        ));
     _params.add(n);
     return '?';
   }
@@ -420,8 +484,14 @@ class SqlCompiler {
       '(($col & 1) + (($col >> 1) & 1) + (($col >> 2) & 1) + '
       '(($col >> 3) & 1) + (($col >> 4) & 1))';
 
-  String _color(String col, String op, String rawValue, PredicateNode p,
-      {required bool identityDefault, bool allowColorlessBit = false}) {
+  String _color(
+    String col,
+    String op,
+    String rawValue,
+    PredicateNode p, {
+    required bool identityDefault,
+    bool allowColorlessBit = false,
+  }) {
     final v = rawValue.toLowerCase();
 
     // Numeric color counts: c=2, id<=3 ...
@@ -462,7 +532,9 @@ class SqlCompiler {
       '<' => '(($col & ~$mask) = 0 AND $col != $mask)',
       '>' => '(($col & $mask) = $mask AND $col != $mask)',
       _ => throw QuerySemanticError(
-          "operator '$effectiveOp' not valid for colors", p.position),
+        "operator '$effectiveOp' not valid for colors",
+        p.position,
+      ),
     };
   }
 
@@ -479,19 +551,23 @@ class SqlCompiler {
     final otherCol = statColumns[value.toLowerCase()];
     if (otherCol != null) {
       return _facesExists(
-          'f.$column IS NOT NULL AND f.$otherCol IS NOT NULL AND '
-          'f.$column ${_numOp(op, p)} f.$otherCol');
+        'f.$column IS NOT NULL AND f.$otherCol IS NOT NULL AND '
+        'f.$column ${_numOp(op, p)} f.$otherCol',
+      );
     }
     if (value == '*') {
       final textCol = column.replaceFirst('_num', '_text');
       return _facesExists("f.$textCol LIKE '%*%'");
     }
-    return _facesExists('f.$column IS NOT NULL AND '
-        'f.$column ${_numOp(op, p)} ${_numParam(value, p)}');
+    return _facesExists(
+      'f.$column IS NOT NULL AND '
+      'f.$column ${_numOp(op, p)} ${_numParam(value, p)}',
+    );
   }
 
   String _mana(String op, String value, PredicateNode p) {
-    final pips = parseManaCost(value) ??
+    final pips =
+        parseManaCost(value) ??
         (throw QuerySemanticError("invalid mana cost '$value'", p.position));
     final encoded = pips.encode();
     _params.add(encoded);
@@ -503,14 +579,17 @@ class SqlCompiler {
       '>' => "mana_geq(f.mana_pips, ?) AND NOT mana_eq(f.mana_pips, ?)",
       '<' => "mana_leq(f.mana_pips, ?) AND NOT mana_eq(f.mana_pips, ?)",
       _ => throw QuerySemanticError(
-          "operator '$op' not valid for mana", p.position),
+        "operator '$op' not valid for mana",
+        p.position,
+      ),
     };
     if (op == '>' || op == '<') _params.add(encoded);
     return _facesExists("f.mana_pips != '' AND $base");
   }
 
   String _legality(String format, PredicateNode p, String statusTest) {
-    final shift = formatShift(format.toLowerCase()) ??
+    final shift =
+        formatShift(format.toLowerCase()) ??
         (throw QuerySemanticError("unknown format '$format'", p.position));
     return '((cards.legalities >> $shift) & 3) $statusTest';
   }
@@ -528,7 +607,9 @@ class SqlCompiler {
       final d = DateTime.tryParse(value);
       if (d == null) {
         throw QuerySemanticError(
-            "expected a date (yyyy-mm-dd), got '$value'", p.position);
+          "expected a date (yyyy-mm-dd), got '$value'",
+          p.position,
+        );
       }
       lo = d;
       hi = d.add(const Duration(days: 1));
@@ -544,7 +625,9 @@ class SqlCompiler {
       '<=' => 'p.released_at < $hiJd',
       '<' => 'p.released_at < $loJd',
       _ => throw QuerySemanticError(
-          "operator '$op' not valid for dates", p.position),
+        "operator '$op' not valid for dates",
+        p.position,
+      ),
     });
   }
 
@@ -581,21 +664,30 @@ class SqlCompiler {
       case 'spell':
         return "cards.type_line NOT LIKE '%Land%'";
       case 'permanent':
-        return _facesExists([
-          for (final t in ['Artifact', 'Creature', 'Enchantment', 'Land',
-              'Planeswalker', 'Battle'])
-            "f.type_line LIKE '%$t%'"
-        ].join(' OR '));
+        return _facesExists(
+          [
+            for (final t in [
+              'Artifact',
+              'Creature',
+              'Enchantment',
+              'Land',
+              'Planeswalker',
+              'Battle',
+            ])
+              "f.type_line LIKE '%$t%'",
+          ].join(' OR '),
+        );
       case 'vanilla':
         return _facesExists(
-            "f.oracle_text = '' AND f.type_line LIKE '%Creature%'");
+          "f.oracle_text = '' AND f.type_line LIKE '%Creature%'",
+        );
       case 'transform' ||
-            'flip' ||
-            'split' ||
-            'meld' ||
-            'leveler' ||
-            'adventure' ||
-            'saga':
+          'flip' ||
+          'split' ||
+          'meld' ||
+          'leveler' ||
+          'adventure' ||
+          'saga':
         return "cards.layout = '$v'";
       case 'mdfc' || 'modal':
         return "cards.layout = 'modal_dfc'";
@@ -603,21 +695,57 @@ class SqlCompiler {
         return "cards.layout IN ('transform', 'modal_dfc', 'reversible_card')";
       case 'commander':
         return _facesExists(
-            "(f.type_line LIKE '%Legendary%' AND f.type_line LIKE '%Creature%')"
-            " OR f.oracle_text LIKE '%can be your commander%'");
+          "(f.type_line LIKE '%Legendary%' AND f.type_line LIKE '%Creature%')"
+          " OR f.oracle_text LIKE '%can be your commander%'",
+        );
       default:
         throw QuerySemanticError(
-            "is:$rawValue is not supported (yet)", p.position);
+          "is:$rawValue is not supported (yet)",
+          p.position,
+        );
     }
   }
 
   static const _knownFields = [
-    'color', 'identity', 'type', 'oracle', 'name', 'keyword', 'mana',
-    'manavalue', 'cmc', 'power', 'toughness', 'loyalty', 'rarity', 'set',
-    'artist', 'flavor', 'watermark', 'border', 'frame', 'format', 'banned',
-    'restricted', 'layout', 'game', 'lang', 'year', 'date', 'produces',
-    'edhrec', 'order', 'direction', 'is', 'not', 'otag', 'oracletag',
-    'function', 'atag', 'arttag', 'art',
+    'color',
+    'identity',
+    'type',
+    'oracle',
+    'name',
+    'keyword',
+    'mana',
+    'manavalue',
+    'cmc',
+    'power',
+    'toughness',
+    'loyalty',
+    'rarity',
+    'set',
+    'artist',
+    'flavor',
+    'watermark',
+    'border',
+    'frame',
+    'format',
+    'banned',
+    'restricted',
+    'layout',
+    'game',
+    'lang',
+    'year',
+    'date',
+    'produces',
+    'edhrec',
+    'order',
+    'direction',
+    'is',
+    'not',
+    'otag',
+    'oracletag',
+    'function',
+    'atag',
+    'arttag',
+    'art',
   ];
 
   String? _suggestField(String field) {
@@ -634,8 +762,7 @@ class SqlCompiler {
   }
 
   static int _editDistance(String a, String b) {
-    final m = List.generate(
-        a.length + 1, (i) => List.filled(b.length + 1, 0));
+    final m = List.generate(a.length + 1, (i) => List.filled(b.length + 1, 0));
     for (var i = 0; i <= a.length; i++) {
       m[i][0] = i;
     }
@@ -657,8 +784,7 @@ class SqlCompiler {
 
   String _orderBy() {
     final asc = _orderAsc;
-    String dir(bool defaultAsc) =>
-        (asc ?? defaultAsc) ? 'ASC' : 'DESC';
+    String dir(bool defaultAsc) => (asc ?? defaultAsc) ? 'ASC' : 'DESC';
     return switch (_orderField ?? 'name') {
       'name' => 'cards.name COLLATE NOCASE ${dir(true)}',
       'cmc' || 'mv' => 'cards.cmc ${dir(true)}, cards.name COLLATE NOCASE ASC',
@@ -684,8 +810,9 @@ class SqlCompiler {
       'toughness' =>
         '(SELECT MAX(f.tou_num) FROM faces f WHERE f.oracle_id = cards.oracle_id) '
             '${dir(false)}, cards.name COLLATE NOCASE ASC',
-      final other =>
-        throw QuerySemanticError("order:$other is not supported (yet)"),
+      final other => throw QuerySemanticError(
+        "order:$other is not supported (yet)",
+      ),
     };
   }
 }

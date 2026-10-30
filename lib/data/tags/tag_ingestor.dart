@@ -33,8 +33,7 @@ class TagIngestor {
     var buffered = 0;
     var processed = 0;
 
-    void add(TableInfo table, Insertable row) =>
-        (rows[table] ??= []).add(row);
+    void add(TableInfo table, Insertable row) => (rows[table] ??= []).add(row);
 
     Future<void> flush() async {
       if (buffered == 0) return;
@@ -63,21 +62,25 @@ class TagIngestor {
       final description = Value(json['description'] as String?);
       if (art) {
         add(
-            db.artTags,
-            ArtTagsCompanion.insert(
-                id: id,
-                slug: normalizeTag(slug),
-                label: label,
-                description: description));
+          db.artTags,
+          ArtTagsCompanion.insert(
+            id: id,
+            slug: normalizeTag(slug),
+            label: label,
+            description: description,
+          ),
+        );
         _stats.artTags++;
       } else {
         add(
-            db.tags,
-            TagsCompanion.insert(
-                id: id,
-                slug: normalizeTag(slug),
-                label: label,
-                description: description));
+          db.tags,
+          TagsCompanion.insert(
+            id: id,
+            slug: normalizeTag(slug),
+            label: label,
+            description: description,
+          ),
+        );
         _stats.tags++;
       }
 
@@ -85,19 +88,28 @@ class TagIngestor {
         if (alias is! String || alias.isEmpty) continue;
         final a = normalizeTag(alias);
         art
-            ? add(db.artTagAliases,
-                ArtTagAliasesCompanion.insert(alias: a, tagId: id))
-            : add(db.tagAliases, TagAliasesCompanion.insert(alias: a, tagId: id));
+            ? add(
+                db.artTagAliases,
+                ArtTagAliasesCompanion.insert(alias: a, tagId: id),
+              )
+            : add(
+                db.tagAliases,
+                TagAliasesCompanion.insert(alias: a, tagId: id),
+              );
       }
       // parent_ids carry the whole hierarchy; child_ids are the same edges
       // seen from the other side.
       for (final parent in (json['parent_ids'] as List? ?? const [])) {
         if (parent is! String || parent.isEmpty) continue;
         art
-            ? add(db.artTagEdges,
-                ArtTagEdgesCompanion.insert(parentId: parent, childId: id))
-            : add(db.tagEdges,
-                TagEdgesCompanion.insert(parentId: parent, childId: id));
+            ? add(
+                db.artTagEdges,
+                ArtTagEdgesCompanion.insert(parentId: parent, childId: id),
+              )
+            : add(
+                db.tagEdges,
+                TagEdgesCompanion.insert(parentId: parent, childId: id),
+              );
       }
       // Oracle taggings name a card; illustration taggings name an artwork.
       for (final tagging in (json['taggings'] as List? ?? const [])) {
@@ -106,15 +118,20 @@ class TagIngestor {
           final illustrationId = t['illustration_id'] as String?;
           if (illustrationId == null) continue;
           add(
-              db.artTagIllustrations,
-              ArtTagIllustrationsCompanion.insert(
-                  tagId: id, illustrationId: illustrationId));
+            db.artTagIllustrations,
+            ArtTagIllustrationsCompanion.insert(
+              tagId: id,
+              illustrationId: illustrationId,
+            ),
+          );
           _stats.artTaggings++;
         } else {
           final oracleId = t['oracle_id'] as String?;
           if (oracleId == null) continue;
-          add(db.tagCards,
-              TagCardsCompanion.insert(tagId: id, oracleId: oracleId));
+          add(
+            db.tagCards,
+            TagCardsCompanion.insert(tagId: id, oracleId: oracleId),
+          );
           _stats.taggings++;
         }
       }
@@ -139,12 +156,11 @@ class TagIngestor {
       TagPackMetaKeys.artTaggingCount: '${_stats.artTaggings}',
       if (bulkUpdatedAt != null) TagPackMetaKeys.bulkUpdatedAt: bulkUpdatedAt,
     };
-    await db.batch((b) => b.insertAll(
-        db.tagPackMeta,
-        [
-          for (final e in entries.entries)
-            TagPackMetaCompanion.insert(key: e.key, value: e.value)
-        ],
-        mode: InsertMode.insertOrReplace));
+    await db.batch(
+      (b) => b.insertAll(db.tagPackMeta, [
+        for (final e in entries.entries)
+          TagPackMetaCompanion.insert(key: e.key, value: e.value),
+      ], mode: InsertMode.insertOrReplace),
+    );
   }
 }

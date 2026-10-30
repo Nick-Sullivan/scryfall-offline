@@ -12,16 +12,17 @@ void main() {
         expect(req.url.toString(), 'https://api.scryfall.com/sets');
         expect(req.headers['User-Agent'], contains('ScryfallApp/'));
         return http.Response(
-            jsonEncode({
-              'object': 'list',
-              'has_more': false,
-              'data': [
-                {'code': 'aaa', 'card_count': 250},
-                {'code': 'bbb', 'card_count': 100},
-                {'code': 'ccc'}, // missing count tolerated
-              ],
-            }),
-            200);
+          jsonEncode({
+            'object': 'list',
+            'has_more': false,
+            'data': [
+              {'code': 'aaa', 'card_count': 250},
+              {'code': 'bbb', 'card_count': 100},
+              {'code': 'ccc'}, // missing count tolerated
+            ],
+          }),
+          200,
+        );
       });
       final api = BulkApi(client, appVersion: 'test');
       expect(await api.fetchSetsCardTotal(), 350);
@@ -31,23 +32,25 @@ void main() {
       final client = MockClient((req) async {
         if (req.url.queryParameters['page'] == '2') {
           return http.Response(
-              jsonEncode({
-                'has_more': false,
-                'data': [
-                  {'card_count': 7},
-                ],
-              }),
-              200);
-        }
-        return http.Response(
             jsonEncode({
-              'has_more': true,
-              'next_page': 'https://api.scryfall.com/sets?page=2',
+              'has_more': false,
               'data': [
-                {'card_count': 3},
+                {'card_count': 7},
               ],
             }),
-            200);
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'has_more': true,
+            'next_page': 'https://api.scryfall.com/sets?page=2',
+            'data': [
+              {'card_count': 3},
+            ],
+          }),
+          200,
+        );
       });
       final api = BulkApi(client, appVersion: 'test');
       expect(await api.fetchSetsCardTotal(), 10);
@@ -66,50 +69,54 @@ void main() {
         expect(req.url.toString(), 'https://api.scryfall.com/bulk-data');
         expect(req.headers['User-Agent'], contains('ScryfallApp/'));
         return http.Response(
-            jsonEncode({
-              'object': 'list',
-              'data': [
-                {
-                  'type': 'default_cards',
-                  'updated_at': '2026-07-17T21:11:17.183+00:00',
-                  'size': 1,
-                  'download_uri': 'https://data.scryfall.io/cards.json',
-                },
-                {
-                  'type': 'oracle_tags',
-                  'updated_at': '2026-07-17T21:00:36.823+00:00',
-                  'size': 18119952,
-                  'download_uri': 'https://data.scryfall.io/tags.json',
-                  'jsonl_download_uri':
-                      'https://data.scryfall.io/tags.jsonl.gz',
-                },
-                {
-                  'type': 'art_tags',
-                  'updated_at': '2026-07-17T21:01:20.000+00:00',
-                  'size': 40000000,
-                  'download_uri': 'https://data.scryfall.io/art.json',
-                  'jsonl_download_uri':
-                      'https://data.scryfall.io/art.jsonl.gz',
-                },
-              ],
-            }),
-            200);
+          jsonEncode({
+            'object': 'list',
+            'data': [
+              {
+                'type': 'default_cards',
+                'updated_at': '2026-07-17T21:11:17.183+00:00',
+                'size': 1,
+                'download_uri': 'https://data.scryfall.io/cards.json',
+              },
+              {
+                'type': 'oracle_tags',
+                'updated_at': '2026-07-17T21:00:36.823+00:00',
+                'size': 18119952,
+                'download_uri': 'https://data.scryfall.io/tags.json',
+                'jsonl_download_uri': 'https://data.scryfall.io/tags.jsonl.gz',
+              },
+              {
+                'type': 'art_tags',
+                'updated_at': '2026-07-17T21:01:20.000+00:00',
+                'size': 40000000,
+                'download_uri': 'https://data.scryfall.io/art.json',
+                'jsonl_download_uri': 'https://data.scryfall.io/art.jsonl.gz',
+              },
+            ],
+          }),
+          200,
+        );
       });
       final api = BulkApi(client, appVersion: 'test');
       final both = await api.fetchTagsInfo();
       final info = both.oracle;
       expect(info.type, 'oracle_tags');
-      expect(info.downloadUri.toString(),
-          'https://data.scryfall.io/tags.jsonl.gz');
+      expect(
+        info.downloadUri.toString(),
+        'https://data.scryfall.io/tags.jsonl.gz',
+      );
       expect(info.isGzip, isTrue);
       expect(info.updatedAt, '2026-07-17T21:00:36.823+00:00');
       expect(both.art.type, 'art_tags');
-      expect(both.art.downloadUri.toString(),
-          'https://data.scryfall.io/art.jsonl.gz');
+      expect(
+        both.art.downloadUri.toString(),
+        'https://data.scryfall.io/art.jsonl.gz',
+      );
     });
 
     test('throws when the entry is missing', () async {
-      final client = MockClient((req) async => http.Response(
+      final client = MockClient(
+        (req) async => http.Response(
           jsonEncode({
             'object': 'list',
             'data': [
@@ -121,7 +128,9 @@ void main() {
               },
             ],
           }),
-          200));
+          200,
+        ),
+      );
       final api = BulkApi(client, appVersion: 'test');
       expect(api.fetchTagsInfo(), throwsA(isA<StateError>()));
     });

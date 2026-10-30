@@ -15,8 +15,9 @@ class SyncDownloading extends SyncProgress {
 
   const SyncDownloading(this.file, this.receivedBytes, this.totalBytes);
 
-  double? get fraction =>
-      totalBytes == null || totalBytes == 0 ? null : receivedBytes / totalBytes!;
+  double? get fraction => totalBytes == null || totalBytes == 0
+      ? null
+      : receivedBytes / totalBytes!;
 }
 
 class SyncIngesting extends SyncProgress {

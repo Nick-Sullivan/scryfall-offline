@@ -23,8 +23,11 @@ class AttributionScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _link(context, 'Scryfall', 'https://scryfall.com'),
-          _link(context, 'Fan Content Policy',
-              'https://company.wizards.com/en/legal/fancontentpolicy'),
+          _link(
+            context,
+            'Fan Content Policy',
+            'https://company.wizards.com/en/legal/fancontentpolicy',
+          ),
           const Divider(height: 32),
           Text('Open source', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -33,8 +36,11 @@ class AttributionScreen extends StatelessWidget {
             'open-source filter grammar (Apache License 2.0).',
           ),
           const SizedBox(height: 8),
-          _link(context, 'CubeCobra on GitHub',
-              'https://github.com/dekkerglen/CubeCobra'),
+          _link(
+            context,
+            'CubeCobra on GitHub',
+            'https://github.com/dekkerglen/CubeCobra',
+          ),
           const SizedBox(height: 16),
           OutlinedButton(
             onPressed: () => showLicensePage(

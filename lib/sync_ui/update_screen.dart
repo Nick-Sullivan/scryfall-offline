@@ -31,7 +31,8 @@ class UpdateScreen extends ConsumerWidget {
           _row(
             'Last update check',
             _friendlyDate(
-                ref.watch(prefsProvider).getString(UpdatePrefs.checkAt)),
+              ref.watch(prefsProvider).getString(UpdatePrefs.checkAt),
+            ),
           ),
           const SizedBox(height: 24),
           if (progress != null) ...[
@@ -53,8 +54,11 @@ class UpdateScreen extends ConsumerWidget {
           else if (updateAvailable == false)
             Row(
               children: [
-                Icon(Icons.check_circle,
-                    size: 18, color: Colors.green.shade700),
+                Icon(
+                  Icons.check_circle,
+                  size: 18,
+                  color: Colors.green.shade700,
+                ),
                 const SizedBox(width: 8),
                 const Text('Your card data is up to date.'),
               ],
@@ -249,10 +253,7 @@ class _TagPackSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Tags',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('Tags', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (running && progress != null) ...[
           LinearProgressIndicator(value: progress.fraction),
@@ -261,9 +262,10 @@ class _TagPackSection extends ConsumerWidget {
         ] else ...[
           Text(switch (status) {
             null => 'Not downloaded.',
-            final s => '${s.tags} oracle tags'
-                '${s.artTags == null ? '' : ' and ${s.artTags} art tags'}, '
-                'downloaded ${friendlyDate(s.fetchedAt)}.',
+            final s =>
+              '${s.tags} oracle tags'
+                  '${s.artTags == null ? '' : ' and ${s.artTags} art tags'}, '
+                  'downloaded ${friendlyDate(s.fetchedAt)}.',
           }),
           // Packs from before art tags have no art tables at all.
           if (status != null && status.artTags == null) ...[
@@ -275,7 +277,9 @@ class _TagPackSection extends ConsumerWidget {
             Text(
               'Download failed: ${progress!.error}',
               style: TextStyle(
-                  fontSize: 12, color: Theme.of(context).colorScheme.error),
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -284,9 +288,9 @@ class _TagPackSection extends ConsumerWidget {
               FilledButton.tonalIcon(
                 onPressed: () => ref.read(tagPackProvider.notifier).start(),
                 icon: const Icon(Icons.sell_outlined),
-                label: Text(status == null
-                    ? 'Download tag data (~20 MB)'
-                    : 'Re-download'),
+                label: Text(
+                  status == null ? 'Download tag data (~20 MB)' : 'Re-download',
+                ),
               ),
               const SizedBox(width: 8),
               if (status != null)
@@ -309,8 +313,10 @@ class _TagPackSection extends ConsumerWidget {
         ),
         TextButton.icon(
           style: TextButton.styleFrom(alignment: Alignment.centerLeft),
-          onPressed: () => launchUrl(Uri.parse('https://tagger.scryfall.com'),
-              mode: LaunchMode.externalApplication),
+          onPressed: () => launchUrl(
+            Uri.parse('https://tagger.scryfall.com'),
+            mode: LaunchMode.externalApplication,
+          ),
           icon: const Icon(Icons.open_in_new, size: 16),
           label: const Text('Browse tags on Scryfall Tagger'),
         ),

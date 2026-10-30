@@ -25,7 +25,9 @@ class SettingsScreen extends ConsumerWidget {
   /// filters — otherwise it would keep shaping results with no way to see
   /// or change it.
   void _setVisible(WidgetRef ref, FilterSection section, bool visible) {
-    ref.read(hiddenFilterSectionsProvider.notifier).setVisible(section, visible);
+    ref
+        .read(hiddenFilterSectionsProvider.notifier)
+        .setVisible(section, visible);
     if (visible) return;
     final defaults = ref.read(defaultFilterProvider);
     // Setting the default also resets the active filter to it, so only do

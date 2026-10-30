@@ -7,7 +7,8 @@ import 'dart:convert';
 /// line (`.json`: `[`, `  {...},`, `]`) and plain JSONL (`.jsonl`). Anything
 /// that cleans to a non-object line is a hard error — bulk format drift
 /// should fail loudly, not silently drop cards.
-class BulkLineDecoder extends StreamTransformerBase<String, Map<String, dynamic>> {
+class BulkLineDecoder
+    extends StreamTransformerBase<String, Map<String, dynamic>> {
   const BulkLineDecoder();
 
   @override
@@ -23,12 +24,14 @@ class BulkLineDecoder extends StreamTransformerBase<String, Map<String, dynamic>
         decoded = jsonDecode(line);
       } on FormatException catch (e) {
         throw FormatException(
-            'Bulk data line $lineNo is not valid JSON: ${e.message}');
+          'Bulk data line $lineNo is not valid JSON: ${e.message}',
+        );
       }
       if (decoded is! Map<String, dynamic>) {
         throw FormatException(
-            'Bulk data line $lineNo decoded to ${decoded.runtimeType}, '
-            'expected a card object');
+          'Bulk data line $lineNo decoded to ${decoded.runtimeType}, '
+          'expected a card object',
+        );
       }
       yield decoded;
     }

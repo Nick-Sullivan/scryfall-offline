@@ -23,7 +23,9 @@ class QuerySemanticError extends QueryError {
 
   /// Optional "did you mean" suggestion (e.g. nearest field name).
   static QuerySemanticError unknownField(String field, {String? suggestion}) =>
-      QuerySemanticError(suggestion == null
-          ? "unknown field '$field'"
-          : "unknown field '$field' — did you mean '$suggestion'?");
+      QuerySemanticError(
+        suggestion == null
+            ? "unknown field '$field'"
+            : "unknown field '$field' — did you mean '$suggestion'?",
+      );
 }

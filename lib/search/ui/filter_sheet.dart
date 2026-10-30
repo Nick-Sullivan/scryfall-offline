@@ -17,13 +17,13 @@ Future<void> showFilterSheet(BuildContext context, WidgetRef ref) {
     // Light scrim so the live-updating results stay visible below the panel.
     barrierColor: Colors.black.withValues(alpha: 0.06),
     transitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (_, __, ___) => const Align(
-      alignment: Alignment.topCenter,
-      child: _FilterPanel(),
-    ),
+    pageBuilder: (_, __, ___) =>
+        const Align(alignment: Alignment.topCenter, child: _FilterPanel()),
     transitionBuilder: (_, anim, __, child) => SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
-          .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+      position: Tween<Offset>(
+        begin: const Offset(0, -1),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
       child: child,
     ),
   );
@@ -56,8 +56,10 @@ class _FilterPanel extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                 child: Row(
                   children: [
-                    Text('Filters',
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Filters',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const Spacer(),
                     TextButton(
                       // Back to the user's default filter (see Settings).

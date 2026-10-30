@@ -45,8 +45,9 @@ class SavedScreen extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Failed to load: $e')),
               data: (items) {
-                final visible =
-                    items.where((c) => ids.contains(c.oracleId)).toList();
+                final visible = items
+                    .where((c) => ids.contains(c.oracleId))
+                    .toList();
                 return GridView.builder(
                   padding: const EdgeInsets.all(8),
                   gridDelegate: cardGridDelegate(columns),
