@@ -24,16 +24,32 @@ class DetailScreen extends ConsumerWidget {
       cardDetailProvider((oracleId: oracleId, printId: printId)),
     );
     final store = ref.watch(imageStoreProvider);
-    final saved = ref.watch(savedCardsProvider).contains(oracleId);
+    // The bookmark is for the printing on screen, so it waits for the detail
+    // to know which one that is.
+    final card = detail.valueOrNull;
+    final shownPrint = card?.rawJson['id'] as String?;
+    ref.watch(savedCardsProvider); // rebuild when the saved list changes
+    final saved =
+        card != null &&
+        ref
+            .read(savedCardsProvider.notifier)
+            .isSaved(oracleId, shownPrint, preferred: card.isPreferredPrint);
     return Scaffold(
       appBar: AppBar(
-        title: Text(detail.valueOrNull?.name ?? ''),
+        title: Text(card?.name ?? ''),
         actions: [
           IconButton(
             icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border),
             tooltip: saved ? 'Remove from saved' : 'Save to view later',
-            onPressed: () =>
-                ref.read(savedCardsProvider.notifier).toggle(oracleId),
+            onPressed: card == null
+                ? null
+                : () => ref
+                      .read(savedCardsProvider.notifier)
+                      .toggle(
+                        oracleId,
+                        shownPrint,
+                        preferred: card.isPreferredPrint,
+                      ),
           ),
         ],
       ),

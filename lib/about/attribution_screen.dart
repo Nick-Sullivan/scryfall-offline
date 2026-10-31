@@ -29,6 +29,18 @@ class AttributionScreen extends StatelessWidget {
             'https://company.wizards.com/en/legal/fancontentpolicy',
           ),
           const Divider(height: 32),
+          Text('Support', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _link(
+            context,
+            'Buy me a coffee',
+            'https://buymeacoffee.com/nicksullivan',
+            icon: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.asset('assets/images/bmc_logo.png', height: 20),
+            ),
+          ),
+          const Divider(height: 32),
           Text('Open source', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           const Text(
@@ -54,12 +66,17 @@ class AttributionScreen extends StatelessWidget {
     );
   }
 
-  Widget _link(BuildContext context, String label, String url) {
+  Widget _link(
+    BuildContext context,
+    String label,
+    String url, {
+    Widget icon = const Icon(Icons.open_in_new, size: 16),
+  }) {
     return TextButton.icon(
       style: TextButton.styleFrom(alignment: Alignment.centerLeft),
       onPressed: () =>
           launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-      icon: const Icon(Icons.open_in_new, size: 16),
+      icon: icon,
       label: Text(label),
     );
   }

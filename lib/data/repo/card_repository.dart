@@ -35,6 +35,10 @@ class CardSummary {
   });
 }
 
+/// A saved card: the printing whose art was saved, or null for entries saved
+/// before printings were remembered (they show the preferred printing).
+typedef SavedCard = ({String oracleId, String? printId});
+
 class PrintingInfo {
   final String id;
   final String setCode;
@@ -198,6 +202,50 @@ class CardRepository {
     return [
       for (final id in oracleIds)
         if (found[id] case final s?) s,
+    ];
+  }
+
+  /// Each saved entry with its summary, in list order. A saved printing shows
+  /// its own art; legacy entries, and printings gone after a data update,
+  /// fall back to the preferred printing. Cards no longer in the data are
+  /// dropped.
+  Future<List<(SavedCard, CardSummary)>> summariesForSaved(
+    List<SavedCard> saved,
+  ) async {
+    final printIds = [
+      for (final s in saved)
+        if (s.printId case final id?) id,
+    ];
+    final byPrint = <String, CardSummary>{};
+    for (var i = 0; i < printIds.length; i += 500) {
+      final chunk = printIds.sublist(
+        i,
+        i + 500 > printIds.length ? printIds.length : i + 500,
+      );
+      final rows = await db
+          .customSelect(
+            'SELECT $_summaryColumns '
+            'FROM prints p JOIN cards ON cards.oracle_id = p.oracle_id '
+            'WHERE p.id IN (${List.filled(chunk.length, '?').join(',')})',
+            variables: [for (final id in chunk) Variable(id)],
+          )
+          .get();
+      for (final r in rows) {
+        final s = _summary(r);
+        byPrint[s.printId!] = s;
+      }
+    }
+    final fallback = {
+      for (final s in await summariesByIds([
+        for (final s in saved)
+          if (!byPrint.containsKey(s.printId)) s.oracleId,
+      ]))
+        s.oracleId: s,
+    };
+    return [
+      for (final s in saved)
+        if (byPrint[s.printId] ?? fallback[s.oracleId] case final summary?)
+          (s, summary),
     ];
   }
 

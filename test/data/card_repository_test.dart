@@ -133,6 +133,35 @@ void main() {
       );
     });
 
+    test('summariesForSaved keeps each saved printing\'s art', () async {
+      const boltM10 = '435589bb-27c6-4a6d-9d63-394d5092b9d8';
+      final bolt = await db
+          .customSelect(
+            "SELECT oracle_id, preferred_print_id FROM cards "
+            "WHERE name = 'Lightning Bolt'",
+          )
+          .getSingle();
+      final oracleId = bolt.data['oracle_id'] as String;
+      final preferred = bolt.data['preferred_print_id'] as String;
+
+      final result = await repo.summariesForSaved([
+        (oracleId: oracleId, printId: boltM10),
+        (oracleId: 'not-a-real-card', printId: 'nope'),
+        (oracleId: oracleId, printId: null), // saved before printings
+        (oracleId: oracleId, printId: 'gone-after-update'),
+      ]);
+      expect(
+        [for (final (_, s) in result) s.printId],
+        [boltM10, preferred, preferred],
+      );
+      expect(result.first.$2.isPreferredPrint, isFalse);
+      expect(result.map((e) => e.$1.printId), [
+        boltM10,
+        null,
+        'gone-after-update',
+      ]);
+    });
+
     test('imageTargets: preferred prints, or every print', () async {
       final perCard = await repo.imageTargets(allPrints: false);
       final all = await repo.imageTargets(allPrints: true);

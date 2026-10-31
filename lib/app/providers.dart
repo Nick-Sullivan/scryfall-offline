@@ -1302,45 +1302,76 @@ final cardColumnsProvider = NotifierProvider<CardColumnsNotifier, int>(
 
 // ----------------------------------------------------------- saved cards
 
-/// Oracle ids the user bookmarked to view later, newest first. Persisted in
-/// prefs (not the card DB, which gets replaced on every data update).
-class SavedCardsNotifier extends Notifier<List<String>> {
+/// Printings the user bookmarked to view later, newest first — each printing
+/// separately, so the saved list keeps the art that was saved. Persisted in
+/// prefs (not the card DB, which gets replaced on every data update) as
+/// `oracleId:printId`; bare `oracleId` entries come from before printings
+/// were remembered and stand for the card's preferred printing.
+class SavedCardsNotifier extends Notifier<List<SavedCard>> {
   static const _key = 'savedCards';
 
   @override
-  List<String> build() =>
-      ref.watch(prefsProvider).getStringList(_key) ?? const [];
+  List<SavedCard> build() => [
+    for (final e in ref.watch(prefsProvider).getStringList(_key) ?? const [])
+      switch (e.split(':')) {
+        [final oracleId, final printId] => (
+          oracleId: oracleId,
+          printId: printId,
+        ),
+        _ => (oracleId: e, printId: null),
+      },
+  ];
 
-  bool isSaved(String oracleId) => state.contains(oracleId);
+  /// The entry for this printing ([preferred]: whether it's the card's
+  /// preferred one, which a legacy entry stands for), if saved.
+  SavedCard? _match(String oracleId, String? printId, bool preferred) {
+    for (final s in state) {
+      if (s.oracleId != oracleId) continue;
+      if (s.printId == printId || (s.printId == null && preferred)) return s;
+    }
+    return null;
+  }
 
-  void toggle(String oracleId) =>
-      isSaved(oracleId) ? remove(oracleId) : _set([oracleId, ...state]);
+  bool isSaved(String oracleId, String? printId, {required bool preferred}) =>
+      _match(oracleId, printId, preferred) != null;
 
-  void remove(String oracleId) => _set([
-    for (final id in state)
-      if (id != oracleId) id,
+  void toggle(String oracleId, String? printId, {required bool preferred}) {
+    switch (_match(oracleId, printId, preferred)) {
+      case final saved?:
+        remove(saved);
+      case null:
+        _set([(oracleId: oracleId, printId: printId), ...state]);
+    }
+  }
+
+  void remove(SavedCard card) => _set([
+    for (final s in state)
+      if (s != card) s,
   ]);
 
   void clear() => _set(const []);
 
-  void _set(List<String> next) {
+  void _set(List<SavedCard> next) {
     state = next;
-    ref.read(prefsProvider).setStringList(_key, next);
+    ref.read(prefsProvider).setStringList(_key, [
+      for (final s in next)
+        s.printId == null ? s.oracleId : '${s.oracleId}:${s.printId}',
+    ]);
   }
 }
 
-final savedCardsProvider = NotifierProvider<SavedCardsNotifier, List<String>>(
-  SavedCardsNotifier.new,
-);
+final savedCardsProvider =
+    NotifierProvider<SavedCardsNotifier, List<SavedCard>>(
+      SavedCardsNotifier.new,
+    );
 
-final savedCardSummariesProvider = FutureProvider<List<CardSummary>>((
-  ref,
-) async {
-  final ids = ref.watch(savedCardsProvider);
-  final repo = ref.watch(cardRepositoryProvider);
-  if (repo == null || ids.isEmpty) return const [];
-  return repo.summariesByIds(ids);
-});
+final savedCardSummariesProvider =
+    FutureProvider<List<(SavedCard, CardSummary)>>((ref) async {
+      final saved = ref.watch(savedCardsProvider);
+      final repo = ref.watch(cardRepositoryProvider);
+      if (repo == null || saved.isEmpty) return const [];
+      return repo.summariesForSaved(saved);
+    });
 
 // ---------------------------------------------------------------- detail
 

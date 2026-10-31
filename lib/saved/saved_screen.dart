@@ -11,7 +11,7 @@ class SavedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ids = ref.watch(savedCardsProvider);
+    final saved = ref.watch(savedCardsProvider);
     final cards = ref.watch(savedCardSummariesProvider);
     final columns = ref.watch(cardColumnsProvider);
 
@@ -19,14 +19,14 @@ class SavedScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Saved cards'),
         actions: [
-          if (ids.isNotEmpty)
+          if (saved.isNotEmpty)
             TextButton(
               onPressed: () => _confirmClear(context, ref),
               child: const Text('Clear all'),
             ),
         ],
       ),
-      body: ids.isEmpty
+      body: saved.isEmpty
           ? const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -46,20 +46,19 @@ class SavedScreen extends ConsumerWidget {
               error: (e, _) => Center(child: Text('Failed to load: $e')),
               data: (items) {
                 final visible = items
-                    .where((c) => ids.contains(c.oracleId))
+                    .where((e) => saved.contains(e.$1))
                     .toList();
                 return GridView.builder(
                   padding: const EdgeInsets.all(8),
                   gridDelegate: cardGridDelegate(columns),
                   itemCount: visible.length,
                   itemBuilder: (context, i) {
-                    final card = visible[i];
+                    final (entry, card) = visible[i];
                     return CardTile(
-                      key: ValueKey(card.oracleId),
+                      key: ValueKey(entry),
                       card: card,
-                      onRemove: () => ref
-                          .read(savedCardsProvider.notifier)
-                          .remove(card.oracleId),
+                      onRemove: () =>
+                          ref.read(savedCardsProvider.notifier).remove(entry),
                     );
                   },
                 );

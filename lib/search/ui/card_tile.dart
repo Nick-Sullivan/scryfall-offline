@@ -29,8 +29,14 @@ class CardTile extends ConsumerWidget {
   const CardTile({super.key, required this.card, this.onRemove});
 
   void _toggleSaved(BuildContext context, WidgetRef ref) {
-    final wasSaved = ref.read(savedCardsProvider).contains(card.oracleId);
-    ref.read(savedCardsProvider.notifier).toggle(card.oracleId);
+    // Saves the printing this tile shows, so the saved list keeps its art.
+    final saved = ref.read(savedCardsProvider.notifier);
+    final wasSaved = saved.isSaved(
+      card.oracleId,
+      card.printId,
+      preferred: card.isPreferredPrint,
+    );
+    saved.toggle(card.oracleId, card.printId, preferred: card.isPreferredPrint);
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()

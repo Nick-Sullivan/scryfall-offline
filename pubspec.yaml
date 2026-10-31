@@ -37,6 +37,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
 
 # Source art is rendered by test/tool/render_icon_test.dart (RENDER_APP_ICON=1);
 # regenerate launcher icons with: dart run flutter_launcher_icons
